@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  bitrix-integration-app:
+    image: sierrasyequipos/kafka-bitrix-integration:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      - KAFKA_HOST=192.168.3.11
+      - BITRIX_USER=40
+      - BITRIX_TOKEN=c1nyoq9i0kumd3kz
+      - DB_HOST=192.168.3.3
+    networks:
+      - springboot-network
+
+networks:
+  springboot-network:
+    driver: bridge

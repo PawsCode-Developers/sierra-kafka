@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'com.pawcodes.sierra'
-version = '0.0.1-SNAPSHOT'
+version = '1.0.0'
 
 java {
 	toolchain {
@@ -24,8 +24,15 @@ repositories {
 }
 
 dependencies {
+	//implementation 'org.apache.httpcomponents.client5:httpclient5:5.4.2'
+	// Spring Boot Starter Web
 	implementation 'org.springframework.boot:spring-boot-starter-web'
+	// Spring Boot Kafka
 	implementation 'org.springframework.kafka:spring-kafka'
+	// Spring Boot Starter Data JPA
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	// SQL Server JDBC Driver
+	runtimeOnly 'com.microsoft.sqlserver:mssql-jdbc'
 	implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.2'
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'

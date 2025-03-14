@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class Company {
     String tipo_identificacion;
-    String nit;
+    long nit;
     String digito;
     String nombres;
     String bloqueo;

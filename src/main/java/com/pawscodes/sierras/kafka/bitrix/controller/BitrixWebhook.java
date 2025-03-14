@@ -28,7 +28,8 @@ public class BitrixWebhook {
         if (body.getAuth().get("application_token").equals("53sezbrrfmpg3oi4ajnwsdru8nmri0cg") &&
                 body.getAuth().get("domain").equals("sierrasyequipos.bitrix24.co")) {
 
-            quoteOperation.handle(ConsumerRequest.<String>builder()
+            quoteOperation.handle(ConsumerRequest
+                    .<String>builder()
                     .headers(headers)
                     .queryParams(Map.of("event", body.getEvent()))
                     .request(body.getData().get("FIELDS").get("ID"))

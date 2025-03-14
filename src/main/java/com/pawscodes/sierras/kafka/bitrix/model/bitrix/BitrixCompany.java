@@ -59,7 +59,7 @@ public class BitrixCompany {
     List<BitrixData> email;
 
     @JsonProperty("UF_CRM_1735236034434")
-    String nit;
+    long nit;
 
     @JsonProperty("UF_CRM_1735236045783")
     String identificationNumber;

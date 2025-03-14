@@ -4,15 +4,17 @@ spring:
   main.banner:
     banner-mode: log
     location: classpath:/banner.txt
+  jackson:
+    default-property-inclusion: non_null
   kafka:
     bootstrap-servers: ${KAFKA_HOST}:9093
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
     consumer:
-      group-id: db
-      auto-offset-reset: earliest
-      enable-auto-commit: false
+      group-id: db-spring
+      auto-offset-reset: latest
+      enable-auto-commit: true
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       properties:
@@ -22,7 +24,7 @@ spring:
       security:
         protocol: PLAINTEXT
   datasource:
-    url: jdbc:sqlserver://${DB_HOST}:1433;databaseName=PRUEBAS;encrypt=true;trustServerCertificate=true;
+    url: jdbc:sqlserver://${DB_HOST}:1433;databaseName=${DATABASE};encrypt=true;trustServerCertificate=true;
     username: KafkaService
     password: FIUkSfkwE90TzdsgjmtJ
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
@@ -34,6 +36,9 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.SQLServerDialect
         format_sql: true
+
+management.endpoint.health.enabled: true
+management.endpoints.web.exposure.include: health
 
 server:
   port: 8081

@@ -32,6 +32,7 @@ public class QuoteOperation {
     private Context<Long, String> getQueryParams(ConsumerRequest<String> consumerRequest) {
         return Context.<Long, String>builder()
                 .headers(consumerRequest.getHeaders())
+                .event(consumerRequest.getQueryParam("event").toString())
                 .request(Long.valueOf(consumerRequest.getRequest()))
                 .build();
     }

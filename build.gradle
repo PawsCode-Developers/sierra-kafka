@@ -27,6 +27,7 @@ dependencies {
 	//implementation 'org.apache.httpcomponents.client5:httpclient5:5.4.2'
 	// Spring Boot Starter Web
 	implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	// Spring Boot Kafka
 	implementation 'org.springframework.kafka:spring-kafka'
 	// Spring Boot Starter Data JPA

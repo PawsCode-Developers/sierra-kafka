@@ -13,7 +13,7 @@ import java.time.OffsetDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class BitrixLeadBase {
+public class BitrixDead {
 
     @JsonProperty("ID")
     int id;
@@ -42,9 +42,6 @@ public class BitrixLeadBase {
     @JsonProperty("COMPANY_TITLE")
     String companyName;
 
-    @JsonProperty("STATUS_ID")
-    String status;
-
     @JsonProperty("COMMENTS")
     String comments;
 
@@ -53,4 +50,7 @@ public class BitrixLeadBase {
 
     @JsonProperty("ASSIGNED_BY_ID")
     long assigned;
+
+    @JsonProperty("UF_CRM_1741043732565")
+    String nitPay;
 }

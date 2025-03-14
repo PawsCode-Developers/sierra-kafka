@@ -8,6 +8,7 @@ import org.springframework.http.HttpHeaders;
 @Builder
 public class Context<T, K> {
     private HttpHeaders headers;
+    private String event;
     private T request;
     private K response;
 }

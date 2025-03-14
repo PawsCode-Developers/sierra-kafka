@@ -10,10 +10,12 @@ import lombok.NoArgsConstructor;
 public class Product {
     String codigo;
     String descripcion;
-    String valor_unitario;
+    double valor_unitario;
     String porcentaje_iva;
     String grupo;
     String subgrupo;
     String subgrupo2;
     String subgrupo3;
+    String maneja_otra_und;
+    String otra_und;
 }

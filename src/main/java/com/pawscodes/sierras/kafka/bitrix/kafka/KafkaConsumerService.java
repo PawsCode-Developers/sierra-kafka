@@ -5,6 +5,7 @@ import com.pawscodes.sierras.kafka.bitrix.gateway.Gateway;
 import com.pawscodes.sierras.kafka.bitrix.model.kafka.Payload;
 import com.pawscodes.sierras.kafka.bitrix.model.kafka.table.Company;
 import com.pawscodes.sierras.kafka.bitrix.model.kafka.table.Contact;
+import com.pawscodes.sierras.kafka.bitrix.model.kafka.table.Payment;
 import com.pawscodes.sierras.kafka.bitrix.model.kafka.table.Product;
 import com.pawscodes.sierras.kafka.bitrix.util.MappingUtil;
 import lombok.extern.slf4j.Slf4j;
@@ -33,7 +34,7 @@ public class KafkaConsumerService {
         gateway.createOrUpdateProduct(model.getAfter());
     }
 
-    //@KafkaListener(topics = "master.PRUEBAS.dbo.terceros")
+    @KafkaListener(topics = "master.PRUEBAS.dbo.terceros")
     public void consumerCompany(String message) {
         Payload<Company> model = mappingUtil.convertToType(message, new TypeReference<>() {
         });
@@ -41,11 +42,19 @@ public class KafkaConsumerService {
         gateway.createOrUpdateCompany(model.getAfter());
     }
 
-    //@KafkaListener(topics = "master.PRUEBAS.dbo.CRM_contactos")
+    @KafkaListener(topics = "master.PRUEBAS.dbo.CRM_contactos")
     public void consumerContact(String message) {
         Payload<Contact> model = mappingUtil.convertToType(message, new TypeReference<>() {
         });
         log.debug("Received message CRM_contactos: {}", model);
         gateway.createOrUpdateContact(model.getAfter());
+    }
+
+    @KafkaListener(topics = "master.PRUEBAS.dbo.sistema_autorizacion_13")
+    public void consumePayment(String message) {
+        Payload<Payment> model = mappingUtil.convertToType(message, new TypeReference<>() {
+        });
+        log.debug("Received message sistema_autorizacion_13: {}", model);
+        gateway.paymentValidation(model.getAfter());
     }
 }

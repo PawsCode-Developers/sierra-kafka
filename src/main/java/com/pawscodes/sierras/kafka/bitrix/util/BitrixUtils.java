@@ -15,6 +15,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Component
@@ -29,11 +30,32 @@ public class BitrixUtils {
         this.restClientUtil = restClientUtil;
     }
 
-    public ResponseEntity<BitrixResult<BitrixLeadBase>> getLead(long id) {
+    public ResponseEntity<BitrixResult<BitrixDead>> getDead(long id) {
         MultiValueMap<String, String> valueMap = new LinkedMultiValueMap<>();
         valueMap.add("id", String.valueOf(id));
 
         return callBitrixGet("crm.deal.get", valueMap)
+                .toEntity(new ParameterizedTypeReference<>() {
+                });
+    }
+
+    public <T> ResponseEntity<BitrixResult<List<BitrixDead>>> getDeadByField(BitrixGetList<T> filters) {
+        return callBitrixPost("crm.deal.list", filters)
+                .toEntity(new ParameterizedTypeReference<>() {
+                });
+    }
+
+    public ResponseEntity<BitrixResult<List<BitrixProductRows>>> getDealProducts(long id) {
+        MultiValueMap<String, String> valueMap = new LinkedMultiValueMap<>();
+        valueMap.add("id", String.valueOf(id));
+
+        return callBitrixGet("crm.deal.productrows.get", valueMap)
+                .toEntity(new ParameterizedTypeReference<>() {
+                });
+    }
+
+    public <T> ResponseEntity<BitrixResult<String>> updateDeal(T deal) {
+        return callBitrixPost("crm.deal.update", deal)
                 .toEntity(new ParameterizedTypeReference<>() {
                 });
     }
@@ -98,7 +120,7 @@ public class BitrixUtils {
                 });
     }
 
-    public ResponseEntity<BitrixResult<BitrixContact>> getProduct(long id) {
+    public ResponseEntity<BitrixResult<BitrixProduct>> getProduct(long id) {
         MultiValueMap<String, String> valueMap = new LinkedMultiValueMap<>();
         valueMap.add("id", String.valueOf(id));
 
@@ -107,8 +129,14 @@ public class BitrixUtils {
                 });
     }
 
-    public <T> ResponseEntity<BitrixResult<String>> addProduct(T product) {
-        return callBitrixPost("crm.product.add", product)
+    public <T> ResponseEntity<BitrixResult<List<BitrixProduct>>> getProductByField(BitrixGetList<T> filters) {
+        return callBitrixPost("crm.product.list", filters)
+                .toEntity(new ParameterizedTypeReference<>() {
+                });
+    }
+
+    public <T> ResponseEntity<BitrixResult<Map<String, Object>>> addProduct(T product) {
+        return callBitrixPost("catalog.product.add", product)
                 .toEntity(new ParameterizedTypeReference<>() {
                 });
     }

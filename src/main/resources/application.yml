@@ -25,13 +25,13 @@ spring:
         protocol: PLAINTEXT
   datasource:
     url: jdbc:sqlserver://${DB_HOST}:1433;databaseName=${DATABASE};encrypt=true;trustServerCertificate=true;
-    username: KafkaService
-    password: FIUkSfkwE90TzdsgjmtJ
+    username: ${DATABASE_USER}
+    password: ${DATABASE_PASSWORD}
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
   jpa:
     hibernate:
       ddl-auto: none
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.SQLServerDialect
@@ -55,3 +55,5 @@ rest:
     port: 80
     hostname: sierrasyequipos.bitrix24.co
     url: https://sierrasyequipos.bitrix24.co/rest/${BITRIX_USER}/${BITRIX_TOKEN}/
+  migration:
+    url: http://localhost:9000/

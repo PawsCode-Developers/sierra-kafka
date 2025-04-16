@@ -9,9 +9,8 @@ import java.io.Serializable;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class DocumentPedId implements Serializable {
-    int id;
-    int sw;
-    int bodega;
-    int numero;
+public class CityId implements Serializable {
+    String ciudad;
+    String departamento;
+    String pais;
 }

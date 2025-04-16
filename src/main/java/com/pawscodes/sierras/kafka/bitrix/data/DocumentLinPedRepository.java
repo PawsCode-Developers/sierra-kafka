@@ -1,0 +1,14 @@
+package com.pawscodes.sierras.kafka.bitrix.data;
+
+import com.pawscodes.sierras.kafka.bitrix.data.entity.DocumentLinPed;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public interface DocumentLinPedRepository extends JpaRepository<DocumentLinPed, Integer> {
+    DocumentLinPed findByNumeroAndCodigo(int numero, String codigo);
+
+    @Query("SELECT e FROM DocumentLinPed e WHERE e.numero = ?1 ORDER BY e.seq DESC LIMIT 1")
+    DocumentLinPed findLastByNumero(int numero);
+}

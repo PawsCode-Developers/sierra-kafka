@@ -15,7 +15,7 @@ import lombok.NoArgsConstructor;
 @Table(name = "documentos_lin_ped")
 public class DocumentLinPed {
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     int id;
     @Builder.Default
     int sw = 1;
@@ -25,4 +25,20 @@ public class DocumentLinPed {
     double cantidad;
     @JsonProperty("valor_unitario")
     double valorUnitario;
+    String codigo;
+    @Builder.Default
+    double cantidad_despachada = 0;
+    int porcentaje_iva;
+    @Builder.Default
+    int porcentaje_descuento = 0;
+    String und;
+    @Builder.Default
+    double cantidad_und = 1;
+    @Builder.Default
+    char adicional = ' ';
+    @Builder.Default
+    int porc_dcto_2 = 0;
+    @Builder.Default
+    int porc_dcto_3 = 0;
+    double despacho_virtual;
 }

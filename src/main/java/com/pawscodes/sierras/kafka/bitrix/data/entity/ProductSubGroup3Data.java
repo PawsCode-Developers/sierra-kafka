@@ -1,5 +1,6 @@
 package com.pawscodes.sierras.kafka.bitrix.data.entity;
 
+
 import com.pawscodes.sierras.kafka.bitrix.data.entity.composeId.ProductSubGroup3Id;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -16,7 +17,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @IdClass(ProductSubGroup3Id.class)
-@Table(name = "referencias_sub")
+@Table(name = "referencias_sub3")
 public class ProductSubGroup3Data {
     @Id
     String grupo;

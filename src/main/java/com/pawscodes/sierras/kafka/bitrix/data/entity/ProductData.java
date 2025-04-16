@@ -1,8 +1,6 @@
 package com.pawscodes.sierras.kafka.bitrix.data.entity;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -21,8 +19,30 @@ public class ProductData {
     double valor_unitario;
     double costo_unitario;
     double porcentaje_iva;
-    String grupo;
-    String subgrupo;
-    String subgrupo2;
-    String subgrupo3;
+    @OneToOne
+    @JoinColumn(name = "grupo", insertable = false, updatable = false)
+    ProductGroupData grupo;
+    @OneToOne
+    @JoinColumns({
+            @JoinColumn(name = "grupo", referencedColumnName = "grupo", insertable = false, updatable = false),
+            @JoinColumn(name = "subgrupo", referencedColumnName = "subgrupo", insertable = false, updatable = false)
+    })
+    ProductSubGroupData subgrupo;
+    @OneToOne
+    @JoinColumns({
+            @JoinColumn(name = "grupo", referencedColumnName = "grupo", insertable = false, updatable = false),
+            @JoinColumn(name = "subgrupo", referencedColumnName = "subgrupo", insertable = false, updatable = false),
+            @JoinColumn(name = "subgrupo2", referencedColumnName = "subgrupo2", insertable = false, updatable = false)
+    })
+    ProductSubGroup2Data subgrupo2;
+    @OneToOne
+    @JoinColumns({
+            @JoinColumn(name = "grupo", referencedColumnName = "grupo", insertable = false, updatable = false),
+            @JoinColumn(name = "subgrupo", referencedColumnName = "subgrupo", insertable = false, updatable = false),
+            @JoinColumn(name = "subgrupo2", referencedColumnName = "subgrupo2", insertable = false, updatable = false),
+            @JoinColumn(name = "subgrupo3", referencedColumnName = "subgrupo3", insertable = false, updatable = false)
+    })
+    ProductSubGroup3Data subgrupo3;
+    String maneja_otra_und;
+    String otra_und;
 }

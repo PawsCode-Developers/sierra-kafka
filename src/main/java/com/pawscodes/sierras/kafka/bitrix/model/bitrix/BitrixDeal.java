@@ -13,7 +13,7 @@ import java.time.OffsetDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class BitrixDead {
+public class BitrixDeal {
 
     @JsonProperty("ID")
     int id;
@@ -51,6 +51,21 @@ public class BitrixDead {
     @JsonProperty("ASSIGNED_BY_ID")
     long assigned;
 
-    @JsonProperty("UF_CRM_1741043732565")
-    String nitPay;
+    @JsonProperty("UF_CRM_1743216219")
+    String errorMessage;
+
+    @JsonProperty("UF_CRM_1743439978")
+    String warehouse;
+
+    @JsonProperty("UF_CRM_1735241760712")
+    String validDay;
+
+    @JsonProperty("UF_CRM_1743530021292")
+    String NoOrder;
+
+    @JsonProperty("UF_CRM_1743774849")
+    int concept;
+
+    @JsonProperty("UF_CRM_1743774680")
+    int concept2;
 }

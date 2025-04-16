@@ -19,9 +19,21 @@ public class BitrixProductRows {
     @JsonProperty("PRICE")
     double price;
 
+    @JsonProperty("DISCOUNT_TYPE_ID")
+    int discountTypeId;
+
     @JsonProperty("DISCOUNT_RATE")
-    String discountRate;
+    double discountRate;
+
+    @JsonProperty("DISCOUNT_SUM")
+    double discountSum;
 
     @JsonProperty("QUANTITY")
     int quantity;
+
+    @JsonProperty("TAX_RATE")
+    int tax;
+
+    @JsonProperty("MEASURE_NAME")
+    String measure;
 }

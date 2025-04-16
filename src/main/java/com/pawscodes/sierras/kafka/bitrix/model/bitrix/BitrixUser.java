@@ -6,17 +6,14 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
-
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class BitrixUpdate<T> {
+public class BitrixUser {
     @JsonProperty("ID")
     String id;
 
-    T fields;
-
-    List<T> rows;
+    @JsonProperty("EMAIL")
+    String email;
 }

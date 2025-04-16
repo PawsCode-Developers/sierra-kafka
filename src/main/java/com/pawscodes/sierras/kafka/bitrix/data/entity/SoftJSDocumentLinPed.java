@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
 @Table(name = "softjs_documentos_lin_ped")
 public class SoftJSDocumentLinPed {
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     int id;
     @Builder.Default
     int sw = 1;
@@ -22,6 +22,23 @@ public class SoftJSDocumentLinPed {
     int numero;
     int seq;
     double cantidad;
-    double valorUnitario;
-    int idDocLinPed;
+    double valorunitario;
+    int iddoclinped;
+    String codigo;
+    @Builder.Default
+    int cantidad_despachada = 0;
+    @Builder.Default
+    double porcdcto = 0.00;
+    @Builder.Default
+    int porcdcto2 = 0;
+    @Builder.Default
+    int porcdcto3 = 0;
+    @Builder.Default
+    double fletes = 0;
+    String notas;
+    int porcentajeiva;
+    String und;
+    @Builder.Default
+    double cantidadund = 1;
+    int idsdp;
 }

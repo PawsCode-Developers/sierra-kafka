@@ -16,6 +16,8 @@ services:
       - BITRIX_TOKEN=c1nyoq9i0kumd3kz
       - DB_HOST=192.168.3.3
       - DATABASE=PRUEBAS
+      - DATABASE_USER=KafkaService
+      - DATABASE_PASSWORD=FIUkSfkwE90TzdsgjmtJ
     networks:
       - springboot-network
 

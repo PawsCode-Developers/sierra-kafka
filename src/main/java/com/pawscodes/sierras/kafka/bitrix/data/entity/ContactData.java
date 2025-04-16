@@ -1,6 +1,6 @@
 package com.pawscodes.sierras.kafka.bitrix.data.entity;
 
-import com.pawscodes.sierras.kafka.bitrix.data.entity.composeId.ProductSubGroup2Id;
+import com.pawscodes.sierras.kafka.bitrix.data.entity.composeId.ContactDataId;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
@@ -15,14 +15,19 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@IdClass(ProductSubGroup2Id.class)
-@Table(name = "referencias_sub2")
-public class ProductSubGroup2Data {
+@IdClass(ContactDataId.class)
+@Table(name = "CRM_contactos")
+public class ContactData {
     @Id
-    String grupo;
+    String nit;
     @Id
-    String subgrupo;
-    @Id
-    String subgrupo2;
-    String descripcion;
+    String contacto;
+    String nombre;
+    String apellidos;
+    String tel_ofi1;
+    String tel_ofi2;
+    String tel_celular;
+    String e_mail;
+    String cargo;
+    String ext1;
 }

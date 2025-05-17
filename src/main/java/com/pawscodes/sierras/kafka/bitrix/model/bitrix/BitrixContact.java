@@ -1,6 +1,9 @@
 package com.pawscodes.sierras.kafka.bitrix.model.bitrix;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.pawscodes.sierras.kafka.bitrix.config.BitrixLongDeserializer;
+import com.pawscodes.sierras.kafka.bitrix.config.BitrixStringDeserializer;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -67,15 +70,19 @@ public class BitrixContact {
     @JsonProperty("SOURCE_DESCRIPTION")
     String originInformation = "Spring Integration";
 
+    @JsonDeserialize(using = BitrixStringDeserializer.class)
     @JsonProperty("POST")
     String cargo;
 
+    @JsonDeserialize(using = BitrixLongDeserializer.class)
     @JsonProperty("UF_CRM_1735240902014")
     long nit;
 
+    @JsonDeserialize(using = BitrixLongDeserializer.class)
     @JsonProperty("UF_CRM_1735240890449")
     long contact;
 
+    @JsonDeserialize(using = BitrixLongDeserializer.class)
     @JsonProperty("UF_CRM_1735240932113")
     long extension;
 }

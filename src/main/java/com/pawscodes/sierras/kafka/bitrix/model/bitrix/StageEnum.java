@@ -10,7 +10,8 @@ public enum StageEnum {
     VALIDACION_PAGO_CUPO("Validación Pago / Cupo", "PREPARATION"),
     PEDIDO("Pedido", "EXECUTING"),
     SEGUIMIENTO_DEL_PEDIDO("Seguimiento del pedido", "UC_IN9PCF"),
-    EN_PRODUCCION("En producción", "FINAL_INVOICE");
+    EN_PRODUCCION("En producción", "FINAL_INVOICE"),
+    CERRADO_PERDIDO("Cerrado Perdido", "LOSE");
 
     final String name;
     final String value;

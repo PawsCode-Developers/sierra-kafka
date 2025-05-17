@@ -2,6 +2,8 @@ package com.pawscodes.sierras.kafka.bitrix.model.bitrix;
 
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.pawscodes.sierras.kafka.bitrix.config.BitrixIntegerDeserializer;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -63,9 +65,11 @@ public class BitrixDeal {
     @JsonProperty("UF_CRM_1743530021292")
     String NoOrder;
 
+    @JsonDeserialize(using = BitrixIntegerDeserializer.class)
     @JsonProperty("UF_CRM_1743774849")
     int concept;
 
+    @JsonDeserialize(using = BitrixIntegerDeserializer.class)
     @JsonProperty("UF_CRM_1743774680")
     int concept2;
 }

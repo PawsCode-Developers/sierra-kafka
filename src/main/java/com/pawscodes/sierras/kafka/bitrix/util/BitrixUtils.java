@@ -15,6 +15,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Component
@@ -85,6 +86,12 @@ public class BitrixUtils {
                 .toEntity(new ParameterizedTypeReference<>() {
                 });
 
+    }
+
+    public <T> ResponseEntity<BitrixResult<Map<String, List<BitrixGetProduct>>>> getProductByFilter(BitrixGetList<T> filters) {
+        return callBitrixPost("catalog.product.list", filters)
+                .toEntity(new ParameterizedTypeReference<>() {
+                });
     }
 
     private RestClient.ResponseSpec callBitrixGet(String method, MultiValueMap<String, String> map) {

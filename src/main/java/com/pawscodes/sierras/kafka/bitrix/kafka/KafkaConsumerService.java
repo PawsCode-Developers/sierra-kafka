@@ -1,6 +1,7 @@
 package com.pawscodes.sierras.kafka.bitrix.kafka;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.pawscodes.sierras.kafka.bitrix.exception.BitrixException;
 import com.pawscodes.sierras.kafka.bitrix.gateway.Gateway;
 import com.pawscodes.sierras.kafka.bitrix.model.kafka.Payload;
 import com.pawscodes.sierras.kafka.bitrix.model.kafka.table.Company;
@@ -51,7 +52,7 @@ public class KafkaConsumerService {
     }
 
     @KafkaListener(topics = "master.PRUEBAS.dbo.sistema_autorizacion_13")
-    public void consumePayment(String message) {
+    public void consumePayment(String message) throws BitrixException {
         Payload<Payment> model = mappingUtil.convertToType(message, new TypeReference<>() {
         });
         log.debug("Received message sistema_autorizacion_13: {}", model);

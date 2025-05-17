@@ -55,4 +55,5 @@ public class CompanyData {
     String concepto_8;
     String concepto_9;
     String concepto_14;
+    Double cupo_credito;
 }

@@ -30,7 +30,7 @@ public class BitrixUtils {
         this.restClientUtil = restClientUtil;
     }
 
-    public ResponseEntity<BitrixResult<BitrixDeal>> getDead(long id) {
+    public ResponseEntity<BitrixResult<BitrixDeal>> getDeal(long id) {
         MultiValueMap<String, String> valueMap = new LinkedMultiValueMap<>();
         valueMap.add("id", String.valueOf(id));
 
@@ -39,7 +39,7 @@ public class BitrixUtils {
                 });
     }
 
-    public <T> ResponseEntity<BitrixResult<List<BitrixDeal>>> getDeadByField(BitrixGetList<T> filters) {
+    public <T> ResponseEntity<BitrixResult<List<BitrixDeal>>> getDealByField(BitrixGetList<T> filters) {
         return callBitrixPost("crm.deal.list", filters)
                 .toEntity(new ParameterizedTypeReference<>() {
                 });

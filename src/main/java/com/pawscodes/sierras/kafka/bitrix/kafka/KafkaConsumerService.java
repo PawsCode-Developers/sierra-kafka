@@ -4,10 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.pawscodes.sierras.kafka.bitrix.exception.BitrixException;
 import com.pawscodes.sierras.kafka.bitrix.gateway.Gateway;
 import com.pawscodes.sierras.kafka.bitrix.model.kafka.Payload;
-import com.pawscodes.sierras.kafka.bitrix.model.kafka.table.Company;
-import com.pawscodes.sierras.kafka.bitrix.model.kafka.table.Contact;
-import com.pawscodes.sierras.kafka.bitrix.model.kafka.table.Payment;
-import com.pawscodes.sierras.kafka.bitrix.model.kafka.table.Product;
+import com.pawscodes.sierras.kafka.bitrix.model.kafka.table.*;
 import com.pawscodes.sierras.kafka.bitrix.util.MappingUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.EnableKafka;
@@ -31,7 +28,7 @@ public class KafkaConsumerService {
     public void consumerProducts(String message) {
         Payload<Product> model = mappingUtil.convertToType(message, new TypeReference<>() {
         });
-        log.info("Received message referencias: {}", model);
+        log.debug("Received message referencias: {}", model);
         gateway.createOrUpdateProduct(model.getAfter());
     }
 
@@ -39,7 +36,7 @@ public class KafkaConsumerService {
     public void consumerCompany(String message) {
         Payload<Company> model = mappingUtil.convertToType(message, new TypeReference<>() {
         });
-        log.info("Received message terceros: {}", model);
+        log.debug("Received message terceros: {}", model);
         gateway.createOrUpdateCompany(model.getAfter());
     }
 
@@ -57,5 +54,13 @@ public class KafkaConsumerService {
         });
         log.debug("Received message sistema_autorizacion_13: {}", model);
         gateway.paymentValidation(model.getAfter());
+    }
+
+    @KafkaListener(topics = "master.PRUEBAS.dbo.softjs_prd_proceso_actividad_start_stop")
+    public void consumePrdProcess(String message) throws BitrixException {
+        Payload<PrdProcess> model = mappingUtil.convertToType(message, new TypeReference<>() {
+        });
+        log.debug("Received message softjs_prd_proceso_actividad_start_stop: {}", model);
+        gateway.updatePrdProcessStatus(model.getAfter());
     }
 }

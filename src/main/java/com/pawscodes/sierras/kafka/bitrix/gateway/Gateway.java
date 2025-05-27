@@ -7,10 +7,7 @@ import com.pawscodes.sierras.kafka.bitrix.data.entity.composeId.StockDataId;
 import com.pawscodes.sierras.kafka.bitrix.exception.BitrixException;
 import com.pawscodes.sierras.kafka.bitrix.model.Customer;
 import com.pawscodes.sierras.kafka.bitrix.model.bitrix.*;
-import com.pawscodes.sierras.kafka.bitrix.model.kafka.table.Company;
-import com.pawscodes.sierras.kafka.bitrix.model.kafka.table.Contact;
-import com.pawscodes.sierras.kafka.bitrix.model.kafka.table.Payment;
-import com.pawscodes.sierras.kafka.bitrix.model.kafka.table.Product;
+import com.pawscodes.sierras.kafka.bitrix.model.kafka.table.*;
 import com.pawscodes.sierras.kafka.bitrix.util.BitrixUtils;
 import com.pawscodes.sierras.kafka.bitrix.util.MigrationAppUtil;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +40,7 @@ public class Gateway {
     private final ConceptRepository conceptRepository;
     private final Concept2Repository concept2Repository;
     private final System1320Repository system1320Repository;
+    private final PrdProcessRepository prdProcessRepository;
     private final ConsecutiveRepository consecutiveRepository;
     private final DocumentPedRepository documentPedRepository;
     private final DiscountCliRepository discountCliRepository;
@@ -53,7 +51,7 @@ public class Gateway {
     private final SoftJSDocumentLinPedRepository softJSDocumentLinPedRepository;
     private final DocumentLinPedHistoryRepository documentLinPedHistoryRepository;
 
-    public Gateway(BitrixUtils bitrixUtils, MigrationAppUtil migrationAppUtil, UserRepository userRepository, StockRepository stockRepository, AuditRepository auditRepository, QuotaRepository quotaRepository, ProductRepository productRepository, CompanyRepository companyRepository, ConceptRepository conceptRepository, Concept2Repository concept2Repository, System1320Repository system1320Repository, ConsecutiveRepository consecutiveRepository, DocumentPedRepository documentPedRepository, DiscountCliRepository discountCliRepository, FreightConfigRepository freightConfigRepository, DocumentLinPedRepository documentLinPedRepository, System1320HistoryRepository system1320HistoryRepository, SoftJSDocumentPedRepository softJSDocumentPedRepository, SoftJSDocumentLinPedRepository softJSDocumentLinPedRepository, DocumentLinPedHistoryRepository documentLinPedHistoryRepository) {
+    public Gateway(BitrixUtils bitrixUtils, MigrationAppUtil migrationAppUtil, UserRepository userRepository, StockRepository stockRepository, AuditRepository auditRepository, QuotaRepository quotaRepository, ProductRepository productRepository, CompanyRepository companyRepository, ConceptRepository conceptRepository, Concept2Repository concept2Repository, System1320Repository system1320Repository, PrdProcessRepository prdProcessRepository, ConsecutiveRepository consecutiveRepository, DocumentPedRepository documentPedRepository, DiscountCliRepository discountCliRepository, FreightConfigRepository freightConfigRepository, DocumentLinPedRepository documentLinPedRepository, System1320HistoryRepository system1320HistoryRepository, SoftJSDocumentPedRepository softJSDocumentPedRepository, SoftJSDocumentLinPedRepository softJSDocumentLinPedRepository, DocumentLinPedHistoryRepository documentLinPedHistoryRepository) {
         this.bitrixUtils = bitrixUtils;
         this.migrationAppUtil = migrationAppUtil;
         this.userRepository = userRepository;
@@ -65,6 +63,7 @@ public class Gateway {
         this.conceptRepository = conceptRepository;
         this.concept2Repository = concept2Repository;
         this.system1320Repository = system1320Repository;
+        this.prdProcessRepository = prdProcessRepository;
         this.consecutiveRepository = consecutiveRepository;
         this.documentPedRepository = documentPedRepository;
         this.discountCliRepository = discountCliRepository;
@@ -658,6 +657,30 @@ public class Gateway {
         }
     }
 
+    public void updatePrdProcessStatus(PrdProcess prdProcess) {
+        AtomicReference<String> details = new AtomicReference<>("");
+        List<PrdProcessData> prdProcessData = prdProcessRepository.findByNumeroop(prdProcess.getNumeroOP());
+        prdProcessData.forEach(prd -> {
+            details.getAndUpdate(s -> s + prd.getCodigo() + ", Actividad: " + prd.getActividad().getDescripcion() + ", Proceso: " + prd.getProceso().getDescripcion() + "\n");
+        });
+
+        BitrixResult<List<BitrixDeal>> result = bitrixUtils.getDealByField(BitrixGetList.builder()
+                        .filter(Map.of("UF_CRM_1743530021292", prdProcess.getNumeroOP()))
+                        .build())
+                .getBody();
+
+        if (result != null && !result.getResult().isEmpty()) {
+            BitrixDeal deal = result.getResult().getFirst();
+
+            deal.setProductionDetails(details.get());
+
+            bitrixUtils.updateDeal(BitrixUpdate.builder()
+                    .id(String.valueOf(deal.getId()))
+                    .fields(deal)
+                    .build());
+        }
+    }
+
     public void createOrUpdateProduct(Product product) {
         migrationAppUtil.createOrUpdateProduct(product.getCodigo());
     }
@@ -675,7 +698,7 @@ public class Gateway {
 
     private BitrixResult<BitrixDeal> getDeal(long id) throws BitrixException {
         try {
-            return bitrixUtils.getDead(id).getBody();
+            return bitrixUtils.getDeal(id).getBody();
         } catch (HttpClientErrorException e) {
             BitrixError error = e.getResponseBodyAs(BitrixError.class);
             throw new BitrixException(error.getErrorDescription());

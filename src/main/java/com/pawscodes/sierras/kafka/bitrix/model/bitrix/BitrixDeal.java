@@ -72,4 +72,7 @@ public class BitrixDeal {
     @JsonDeserialize(using = BitrixIntegerDeserializer.class)
     @JsonProperty("UF_CRM_1743774680")
     int concept2;
+
+    @JsonProperty("UF_CRM_1748312075240")
+    String productionDetails;
 }

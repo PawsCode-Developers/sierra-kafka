@@ -436,7 +436,7 @@ public class Gateway {
                         .getBody();
 
                 Map<String, Map<Integer, String>> fieldsValues = customFields.getResult().stream()
-                        .filter(bitrixCustomFields -> bitrixCustomFields.getFieldName().matches("UF_CRM_1743439978|UF_CRM_1743774849|UF_CRM_1743774680"))
+                        .filter(bitrixCustomFields -> bitrixCustomFields.getFieldName().matches("UF_CRM_1743439978|UF_CRM_1743774849|UF_CRM_1743774680|UF_CRM_1735241718870"))
                         .collect(Collectors.toMap(
                                 BitrixCustomFields::getFieldName,
                                 listItem -> listItem.getValues().stream().collect(Collectors.toMap(
@@ -448,6 +448,7 @@ public class Gateway {
                 Map<Integer, String> warehouseMap = fieldsValues.get("UF_CRM_1743439978");
                 Map<Integer, String> conceptMap = fieldsValues.get("UF_CRM_1743774849");
                 Map<Integer, String> concept2Map = fieldsValues.get("UF_CRM_1743774680");
+                Map<Integer, String> validDayMap = fieldsValues.get("UF_CRM_1735241718870");
 
                 BitrixResult<List<BitrixUser>> userList = bitrixUtils.getUser(BitrixGetList.builder()
                                 .filter(deal.getAssigned())
@@ -481,7 +482,7 @@ public class Gateway {
                             .fecha(date)
                             .fecha_hora(LocalDateTime.now())
                             .vendedor(userData.getNit())
-                            .diasValidez(Integer.parseInt(deal.getValidDay().split(" ")[0]))
+                            .diasValidez(Integer.parseInt(validDayMap.get(Integer.parseInt(deal.getValidDay())).split(" ")[0]))
                             .condicion(companyData.getCondicion())
                             .notas(deal.getComments())
                             .usuario(userData.getUsuario())

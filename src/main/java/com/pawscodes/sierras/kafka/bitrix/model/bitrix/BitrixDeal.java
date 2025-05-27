@@ -59,7 +59,7 @@ public class BitrixDeal {
     @JsonProperty("UF_CRM_1743439978")
     String warehouse;
 
-    @JsonProperty("UF_CRM_1735241760712")
+    @JsonProperty("UF_CRM_1735241718870")
     String validDay;
 
     @JsonProperty("UF_CRM_1743530021292")

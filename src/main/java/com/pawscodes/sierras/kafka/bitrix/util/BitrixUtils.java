@@ -82,7 +82,7 @@ public class BitrixUtils {
     }
 
     public <T> ResponseEntity<BitrixResult<List<BitrixUser>>> getUser(BitrixGetList<T> filters) {
-        return callBitrixPost("user.search", filters)
+        return callBitrixPost("user.get", filters)
                 .toEntity(new ParameterizedTypeReference<>() {
                 });
 

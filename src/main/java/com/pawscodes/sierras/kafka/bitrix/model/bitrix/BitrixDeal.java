@@ -38,9 +38,6 @@ public class BitrixDeal {
     @JsonProperty("COMPANY_ID")
     int companyId;
 
-    @JsonProperty("BEGINDATE")
-    OffsetDateTime beginDate;
-
     @JsonProperty("COMPANY_TITLE")
     String companyName;
 
@@ -73,6 +70,19 @@ public class BitrixDeal {
     @JsonProperty("UF_CRM_1743774680")
     int concept2;
 
+    @JsonDeserialize(using = BitrixIntegerDeserializer.class)
+    @JsonProperty("UF_CRM_1744648899")
+    int freightType;
+
     @JsonProperty("UF_CRM_1748312075240")
     String productionDetails;
+
+    @JsonProperty("UF_CRM_1748492579602")
+    String discountDetails;
+
+    @JsonProperty("UF_CRM_1748495225512")
+    String addresses;
+
+    @JsonProperty("UF_CRM_1744398496")
+    String deliveryAddress;
 }

@@ -49,6 +49,8 @@ logging:
     org.springframework.web: INFO
     org.apache.kafka: INFO
     org.apache.hc.client5.http: OFF
+  file:
+    name: /bitrix/logs/app.log
 
 rest:
   bitrix:

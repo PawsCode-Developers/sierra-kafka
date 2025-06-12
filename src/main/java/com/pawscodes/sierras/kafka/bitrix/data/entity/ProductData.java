@@ -18,6 +18,7 @@ public class ProductData {
     String descripcion;
     double valor_unitario;
     double costo_unitario;
+    double precio_si_costo_cero;
     double porcentaje_iva;
     @OneToOne
     @JoinColumn(name = "grupo", insertable = false, updatable = false)

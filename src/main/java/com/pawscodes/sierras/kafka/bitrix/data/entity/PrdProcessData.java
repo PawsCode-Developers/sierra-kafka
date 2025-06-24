@@ -19,6 +19,8 @@ public class PrdProcessData {
     String numeroop;
     @Id
     String codigo;
+    @Id
+    String orden;
     String seq;
     @OneToOne
     @JoinColumn(name = "proceso", insertable = false, updatable = false)
@@ -30,4 +32,6 @@ public class PrdProcessData {
     })
     ActivitiesDescriptionData actividad;
     String noaplica;
+    String fechahorastart;
+    String fechahorastop;
 }

@@ -2,10 +2,11 @@ FROM gradle:8.12-alpine AS temp_build_image
 ENV APP_HOME=/usr/app/
 COPY . $APP_HOME
 WORKDIR $APP_HOME
+
 RUN gradle build
 
-FROM alpine/java:22
-ENV APP_HOME=/usr/app/
+FROM eclipse-temurin:22-jre-alpine
+ENV APP_HOME=/usr/app
 
 WORKDIR $APP_HOME
 

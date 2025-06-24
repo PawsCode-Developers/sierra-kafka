@@ -11,7 +11,8 @@ public enum StageEnum {
     PEDIDO("Pedido", "EXECUTING"),
     SEGUIMIENTO_DEL_PEDIDO("Seguimiento del pedido", "UC_IN9PCF"),
     EN_PRODUCCION("En producción", "FINAL_INVOICE"),
-    CERRADO_PERDIDO("Cerrado Perdido", "LOSE");
+    CERRADO_PERDIDO("Cerrado Perdido", "LOSE"),
+    FACTURADO("Facturado", "WON");
 
     final String name;
     final String value;

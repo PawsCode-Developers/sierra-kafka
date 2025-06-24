@@ -41,4 +41,6 @@ public class DocumentLinPed {
     @Builder.Default
     int porc_dcto_3 = 0;
     double despacho_virtual;
+    double cantidad_otra_und;
+    double cantidad_dos;
 }

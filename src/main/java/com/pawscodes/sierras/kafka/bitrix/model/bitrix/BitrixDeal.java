@@ -85,4 +85,13 @@ public class BitrixDeal {
 
     @JsonProperty("UF_CRM_1744398496")
     String deliveryAddress;
+
+    @JsonProperty("UF_CRM_1749584576936")
+    String detailsOtherUnit;
+
+    @JsonProperty("UF_CRM_1750194510700")
+    String otherUnits;
+
+    @JsonProperty("UF_CRM_1750204659")
+    String clientState;
 }

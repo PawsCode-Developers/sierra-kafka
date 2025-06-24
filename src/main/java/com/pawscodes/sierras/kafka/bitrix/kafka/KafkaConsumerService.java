@@ -24,43 +24,69 @@ public class KafkaConsumerService {
         this.gateway = gateway;
     }
 
-    @KafkaListener(topics = "master.PRUEBAS.dbo.referencias")
+    @KafkaListener(topics = "master.SIERRAS.dbo.referencias")
     public void consumerProducts(String message) {
-        Payload<Product> model = mappingUtil.convertToType(message, new TypeReference<>() {
-        });
-        log.debug("Received message referencias: {}", model);
-        gateway.createOrUpdateProduct(model.getAfter());
+        if (!message.isEmpty()) {
+            Payload<Product> model = mappingUtil.convertToType(message, new TypeReference<>() {
+            });
+            log.debug("Received message referencias: {}", model);
+            gateway.createOrUpdateProduct(model.getAfter());
+        } else
+            log.debug("Product: {}", message);
     }
 
-    @KafkaListener(topics = "master.PRUEBAS.dbo.terceros")
+    @KafkaListener(topics = "master.SIERRAS.dbo.terceros")
     public void consumerCompany(String message) {
-        Payload<Company> model = mappingUtil.convertToType(message, new TypeReference<>() {
-        });
-        log.debug("Received message terceros: {}", model);
-        gateway.createOrUpdateCompany(model.getAfter());
+        if (!message.isEmpty()) {
+            Payload<Company> model = mappingUtil.convertToType(message, new TypeReference<>() {
+            });
+            log.debug("Received message terceros: {}", model);
+            gateway.createOrUpdateCompany(model.getAfter());
+        } else
+            log.debug("Company: {}", message);
     }
 
-    @KafkaListener(topics = "master.PRUEBAS.dbo.CRM_contactos")
+    @KafkaListener(topics = "master.SIERRAS.dbo.CRM_contactos")
     public void consumerContact(String message) {
-        Payload<Contact> model = mappingUtil.convertToType(message, new TypeReference<>() {
-        });
-        log.debug("Received message CRM_contactos: {}", model);
-        gateway.createOrUpdateContact(model.getAfter());
+        if (!message.isEmpty()) {
+            Payload<Contact> model = mappingUtil.convertToType(message, new TypeReference<>() {
+            });
+            log.debug("Received message CRM_contactos: {}", model);
+            gateway.createOrUpdateContact(model.getAfter());
+        } else
+            log.debug("Contact: {}", message);
     }
 
-    @KafkaListener(topics = "master.PRUEBAS.dbo.sistema_autorizacion_13")
+    @KafkaListener(topics = "master.SIERRAS.dbo.sistema_autorizacion_13")
     public void consumePayment(String message) throws BitrixException {
-        Payload<Payment> model = mappingUtil.convertToType(message, new TypeReference<>() {
-        });
-        log.debug("Received message sistema_autorizacion_13: {}", model);
-        gateway.paymentValidation(model.getAfter());
+        if (!message.isEmpty()) {
+            Payload<Payment> model = mappingUtil.convertToType(message, new TypeReference<>() {
+            });
+            log.debug("Received message sistema_autorizacion_13: {}", model);
+            gateway.paymentValidation(model.getAfter());
+        } else
+            log.debug("Payment: {}", message);
     }
 
-    @KafkaListener(topics = "master.PRUEBAS.dbo.softjs_prd_proceso_actividad_start_stop")
-    public void consumePrdProcess(String message) throws BitrixException {
-        Payload<PrdProcess> model = mappingUtil.convertToType(message, new TypeReference<>() {
-        });
-        log.debug("Received message softjs_prd_proceso_actividad_start_stop: {}", model);
-        gateway.updatePrdProcessStatus(model.getAfter());
+    @KafkaListener(topics = "master.SIERRAS.dbo.softjs_prd_proceso_actividad_start_stop")
+    public void consumePrdProcess(String message) {
+        if (!message.isEmpty()) {
+            Payload<PrdProcess> model = mappingUtil.convertToType(message, new TypeReference<>() {
+            });
+            log.debug("Received message softjs_prd_proceso_actividad_start_stop: {}", model);
+            gateway.updatePrdProcessStatus(model.getAfter());
+        } else
+            log.debug("PrdProcess: {}", message);
+    }
+
+    @KafkaListener(topics = "master.SIERRAS.dbo.documentos")
+    public void consumeBill(String message) {
+        if (!message.isEmpty()) {
+            Payload<Bill> model = mappingUtil.convertToType(message, new TypeReference<>() {
+            });
+            log.debug("Received message documentos: {}", model);
+            gateway.updateBillStatus(model.getAfter());
+        } else
+            log.debug("Bill: {}", message);
     }
 }

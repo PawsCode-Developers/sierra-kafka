@@ -6,4 +6,5 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface SoftJSDocumentPedRepository extends JpaRepository<SoftJSDocumentPed, Integer> {
+    SoftJSDocumentPed findByNumero(int numero);
 }

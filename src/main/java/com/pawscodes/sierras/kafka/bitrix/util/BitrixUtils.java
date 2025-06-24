@@ -60,8 +60,8 @@ public class BitrixUtils {
                 });
     }
 
-    public <T> ResponseEntity<BitrixResult<String>> updateDeal(T deal) {
-        return callBitrixPost("crm.deal.update", deal)
+    public <T> void updateDeal(T deal) {
+        callBitrixPost("crm.deal.update", deal)
                 .toEntity(new ParameterizedTypeReference<>() {
                 });
     }

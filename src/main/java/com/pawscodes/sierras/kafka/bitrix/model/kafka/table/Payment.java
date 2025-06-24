@@ -27,6 +27,7 @@ public class Payment {
     LocalDateTime fecha_hora_a;
     String pc_a;
     String chat;
+    String mensaje;
     @JsonProperty("Notas")
     String Notas;
 }

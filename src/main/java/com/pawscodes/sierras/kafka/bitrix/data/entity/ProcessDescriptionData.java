@@ -18,5 +18,4 @@ public class ProcessDescriptionData {
     @Id
     String proceso;
     String descripcion;
-    String subProceso;
 }

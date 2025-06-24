@@ -6,6 +6,7 @@ spring:
     location: classpath:/banner.txt
   jackson:
     default-property-inclusion: non_null
+    time-zone: America/Bogota
   kafka:
     bootstrap-servers: ${KAFKA_HOST}:9093
     producer:
@@ -36,6 +37,7 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.SQLServerDialect
         format_sql: true
+        jdbc.time_zone: America/Bogota
 
 management.endpoint.health.enabled: true
 management.endpoints.web.exposure.include: health

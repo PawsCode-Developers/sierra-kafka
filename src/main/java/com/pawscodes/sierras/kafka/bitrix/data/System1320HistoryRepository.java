@@ -9,7 +9,9 @@ import java.util.Optional;
 
 @Repository
 public interface System1320HistoryRepository extends JpaRepository<System1320HistoryData, Integer> {
-    List<System1320HistoryData> findByNitAndPrograma(long nit, String programa);
+    List<System1320HistoryData> findByNitAndProgramaStartingWithOrderByAutorizadoDesc(long nit, String programa);
+
+    List<System1320HistoryData> findByNitAndProgramaOrderByAutorizadoDesc(long nit, String programa);
 
     Optional<System1320HistoryData> findFirstByOrderByIdDesc();
 }

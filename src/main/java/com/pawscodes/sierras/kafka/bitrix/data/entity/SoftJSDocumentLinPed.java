@@ -41,4 +41,6 @@ public class SoftJSDocumentLinPed {
     @Builder.Default
     double cantidadund = 1;
     int idsdp;
+    double cantidaddos;
+    double cantidadotraund;
 }

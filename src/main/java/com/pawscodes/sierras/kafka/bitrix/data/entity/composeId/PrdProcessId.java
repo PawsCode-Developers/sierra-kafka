@@ -12,4 +12,5 @@ import java.io.Serializable;
 public class PrdProcessId implements Serializable {
     String numeroop;
     String codigo;
+    String orden;
 }

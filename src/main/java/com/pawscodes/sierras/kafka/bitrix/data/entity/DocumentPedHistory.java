@@ -1,6 +1,8 @@
 package com.pawscodes.sierras.kafka.bitrix.data.entity;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -14,47 +16,35 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "documentos_ped")
-public class DocumentPed {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    int id;
+@Table(name = "documentos_ped_historia")
+public class DocumentPedHistory {
     @Builder.Default
     int sw = 1;
     int bodega;
+    @Id
     int numero;
     long nit;
+    long vendedor;
+    LocalDate fecha;
+    String condicion;
+    int diasValidez;
+    double valor_total;
+    LocalDateTime fecha_hora;
     @Builder.Default
     int anulado = 0;
-    LocalDate fecha;
-    LocalDateTime fecha_hora;
-    double valor_total;
-    long vendedor;
-    String condicion;
-    String documento;
     String notas;
-    int diasValidez;
+    String usuario;
     @Builder.Default
     String pc = "BITRIX";
-    String usuario;
-    String Nit_Usuario;
     @Builder.Default
-    int descuento_pie = 0;
+    int codigo_direccion = 0;
+    String documento;
     @Builder.Default
     double fletes = 0;
     @Builder.Default
     double iva_fletes = 0;
     @Builder.Default
-    int descuento_des_iva = 0;
-    @Builder.Default
     int listaPrecios = 1;
     @Builder.Default
-    double tasa = 1;
-    @Builder.Default
-    int concepto = 0;
-    @Builder.Default
     int concepto2 = 0;
-    @Builder.Default
-    int codigo_direccion = 0;
-    String despacho;
 }

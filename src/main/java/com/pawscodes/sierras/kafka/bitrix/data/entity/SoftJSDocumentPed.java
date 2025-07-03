@@ -35,7 +35,7 @@ public class SoftJSDocumentPed {
     int idDocPed;
     long vendedor;
     String condicion;
-    int documento;
+    String documento;
     String notas;
     int diasvalidez;
     @Builder.Default

@@ -19,7 +19,7 @@ public class BitrixProductRows {
     String productName;
 
     @JsonProperty("PRICE")
-    double originalPrice;
+    double price;
 
     @JsonProperty("PRICE_NETTO")
     double priceNet;
@@ -31,7 +31,7 @@ public class BitrixProductRows {
     double accountPrice;
 
     @JsonProperty("PRICE_EXCLUSIVE")
-    double price;
+    double priceExclusive;
 
     @JsonProperty("DISCOUNT_TYPE_ID")
     int discountTypeId;

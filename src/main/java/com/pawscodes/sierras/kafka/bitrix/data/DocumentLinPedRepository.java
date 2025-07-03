@@ -9,7 +9,7 @@ import java.util.List;
 
 @Repository
 public interface DocumentLinPedRepository extends JpaRepository<DocumentLinPed, Integer> {
-    DocumentLinPed findByNumeroAndCodigo(int numero, String codigo);
+    DocumentLinPed findByNumeroAndCodigoAndCantidad(int numero, String codigo, double cantidad);
 
     @Query("SELECT e FROM DocumentLinPed e WHERE e.numero = ?1 ORDER BY e.seq DESC LIMIT 1")
     DocumentLinPed findLastByNumero(int numero);

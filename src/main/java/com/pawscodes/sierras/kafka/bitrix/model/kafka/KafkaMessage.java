@@ -5,5 +5,5 @@ import lombok.Data;
 @Data
 public class KafkaMessage<T> {
 
-    Payload<T> payload;
+    PayloadKafka<T> payloadKafka;
 }

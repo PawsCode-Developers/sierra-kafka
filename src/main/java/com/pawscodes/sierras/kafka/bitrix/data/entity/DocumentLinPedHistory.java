@@ -16,20 +16,19 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @Table(name = "documentos_lin_ped_historia")
 public class DocumentLinPedHistory {
-    @Id
-    //@GeneratedValue(strategy = GenerationType.IDENTITY)
-    int id;
     @Builder.Default
     int sw = 1;
     int bodega;
     int numero;
+    String codigo;
+    @Id
+    int id;
     int seq;
     double cantidad;
-    @JsonProperty("valor_unitario")
-    double valorUnitario;
-    String codigo;
     @Builder.Default
     double cantidad_despachada = 0;
+    @JsonProperty("valor_unitario")
+    double valorUnitario;
     int porcentaje_iva;
     @Builder.Default
     int porcentaje_descuento = 0;
@@ -42,5 +41,7 @@ public class DocumentLinPedHistory {
     int porc_dcto_2 = 0;
     @Builder.Default
     int porc_dcto_3 = 0;
-    double despacho_virtual;
+    int despacho_virtual;
+    double cantidad_otra_und;
+    Integer cantidad_dos;
 }

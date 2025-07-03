@@ -28,8 +28,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -62,10 +60,11 @@ public class Gateway {
     private final DocumentLinPedRepository documentLinPedRepository;
     private final System1320HistoryRepository system1320HistoryRepository;
     private final SoftJSDocumentPedRepository softJSDocumentPedRepository;
+    private final DocumentPedHistoryRepository documentPedHistoryRepository;
     private final SoftJSDocumentLinPedRepository softJSDocumentLinPedRepository;
     private final DocumentLinPedHistoryRepository documentLinPedHistoryRepository;
 
-    public Gateway(BitrixUtils bitrixUtils, MigrationAppUtil migrationAppUtil, UserRepository userRepository, StockRepository stockRepository, AuditRepository auditRepository, QuotaRepository quotaRepository, ProductRepository productRepository, CompanyRepository companyRepository, ConceptRepository conceptRepository, Concept2Repository concept2Repository, System1320Repository system1320Repository, PrdProcessRepository prdProcessRepository, CompanyDirRepository companyDirRepository, ConsecutiveRepository consecutiveRepository, DocumentPedRepository documentPedRepository, DiscountCliRepository discountCliRepository, FreightConfigRepository freightConfigRepository, DocumentLinPedRepository documentLinPedRepository, System1320HistoryRepository system1320HistoryRepository, SoftJSDocumentPedRepository softJSDocumentPedRepository, SoftJSDocumentLinPedRepository softJSDocumentLinPedRepository, DocumentLinPedHistoryRepository documentLinPedHistoryRepository) {
+    public Gateway(BitrixUtils bitrixUtils, MigrationAppUtil migrationAppUtil, UserRepository userRepository, StockRepository stockRepository, AuditRepository auditRepository, QuotaRepository quotaRepository, ProductRepository productRepository, CompanyRepository companyRepository, ConceptRepository conceptRepository, Concept2Repository concept2Repository, System1320Repository system1320Repository, PrdProcessRepository prdProcessRepository, CompanyDirRepository companyDirRepository, ConsecutiveRepository consecutiveRepository, DocumentPedRepository documentPedRepository, DiscountCliRepository discountCliRepository, FreightConfigRepository freightConfigRepository, DocumentLinPedRepository documentLinPedRepository, System1320HistoryRepository system1320HistoryRepository, SoftJSDocumentPedRepository softJSDocumentPedRepository, DocumentPedHistoryRepository documentPedHistoryRepository, SoftJSDocumentLinPedRepository softJSDocumentLinPedRepository, DocumentLinPedHistoryRepository documentLinPedHistoryRepository) {
         this.bitrixUtils = bitrixUtils;
         this.migrationAppUtil = migrationAppUtil;
         this.userRepository = userRepository;
@@ -86,6 +85,7 @@ public class Gateway {
         this.documentLinPedRepository = documentLinPedRepository;
         this.system1320HistoryRepository = system1320HistoryRepository;
         this.softJSDocumentPedRepository = softJSDocumentPedRepository;
+        this.documentPedHistoryRepository = documentPedHistoryRepository;
         this.softJSDocumentLinPedRepository = softJSDocumentLinPedRepository;
         this.documentLinPedHistoryRepository = documentLinPedHistoryRepository;
     }
@@ -170,8 +170,26 @@ public class Gateway {
 
     private void validateOrderPrice(BitrixDeal deal, BitrixResult<List<BitrixProductRows>> result) throws BitrixException {
         AtomicBoolean hasToUpdateBitrixProducts = new AtomicBoolean(false);
+        int noOrder = Integer.parseInt(deal.getNoOrder());
+        DocumentPed ped = documentPedRepository.findByNumero(noOrder);
+        DocumentPedHistory pedHistory = documentPedHistoryRepository.findByNumero(noOrder);
+
+        BitrixResult<List<BitrixUser>> userList = bitrixUtils.getUser(BitrixGetList.builder()
+                        .filter(Map.of("ID", deal.getAssigned()))
+                        .build())
+                .getBody();
+        UserData userData = userRepository.findByCorreointbitrix(userList.getResult().getFirst().getEmail());
+
+        if (ped != null && userData != null && ped.getVendedor() != userData.getNit()) {
+            ped.setVendedor(userData.getNit());
+            documentPedRepository.save(ped);
+            pedHistory.setVendedor(userData.getNit());
+            documentPedHistoryRepository.save(pedHistory);
+        }
+
         result.getResult().forEach(productRows -> {
-            DocumentLinPed linPed = documentLinPedRepository.findByNumeroAndCodigo(Integer.parseInt(deal.getNoOrder()), productRows.getProductName());
+            DocumentLinPed linPed = documentLinPedRepository.findByNumeroAndCodigoAndCantidad(noOrder, productRows.getProductName(), productRows.getQuantity());
+            DocumentLinPedHistory linPedHistory = documentLinPedHistoryRepository.findByNumeroAndCodigoAndCantidad(noOrder, productRows.getProductName(), productRows.getQuantity());
             if (linPed != null) {
                 if (linPed.getValorUnitario() != productRows.getPrice()) {
                     productRows.setPrice(linPed.getValorUnitario());
@@ -180,6 +198,18 @@ public class Gateway {
                 if (linPed.getCantidad() != productRows.getQuantity()) {
                     linPed.setCantidad(productRows.getQuantity());
                     documentLinPedRepository.save(linPed);
+                    linPedHistory.setCantidad(productRows.getQuantity());
+                    documentLinPedHistoryRepository.save(linPedHistory);
+                }
+                Map<String, Integer> itemOtherUnit = getStringIntegerMap(deal);
+                Integer hasOtherUnit = itemOtherUnit.get(linPed.getCodigo());
+                if (hasOtherUnit != null && linPed.getCantidad_dos() != itemOtherUnit.get(linPed.getCodigo() + "_" + linPed.getCantidad())) {
+                    linPed.setCantidad_dos(hasOtherUnit);
+                    linPed.setCantidad_otra_und(Math.round((productRows.getQuantity() / hasOtherUnit) * 10000.0) / 10000.0);
+                    documentLinPedRepository.save(linPed);
+                    linPedHistory.setCantidad_dos(hasOtherUnit);
+                    linPedHistory.setCantidad_otra_und(linPed.getCantidad_otra_und());
+                    documentLinPedHistoryRepository.save(linPedHistory);
                 }
             } else {
                 DocumentLinPed last = documentLinPedRepository.findLastByNumero(Integer.parseInt(deal.getNoOrder()));
@@ -192,7 +222,19 @@ public class Gateway {
                         .bodega(last.getBodega())
                         .porcentaje_iva(productRows.getTax())
                         .und(productRows.getMeasure())
-                        .despacho_virtual(0)
+                        .despacho_virtual((int) productRows.getQuantity())
+                        .build());
+
+                documentLinPedHistoryRepository.save(DocumentLinPedHistory.builder()
+                        .seq(last.getSeq() + 1)
+                        .codigo(productRows.getProductName())
+                        .cantidad(productRows.getQuantity())
+                        .valorUnitario(productRows.getPrice())
+                        .numero(Integer.parseInt(deal.getNoOrder()))
+                        .bodega(last.getBodega())
+                        .porcentaje_iva(productRows.getTax())
+                        .und(productRows.getMeasure())
+                        .despacho_virtual((int) productRows.getQuantity())
                         .build());
             }
         });
@@ -238,21 +280,30 @@ public class Gateway {
                     .fields(deal)
                     .build());
         } else {
-            for (BitrixProductRows productRows : result.getResult()) {
-                ProductData productData = productRepository.findById(productRows.getProductName())
-                        .orElseGet(ProductData::new);
-                if (deal.getCompanyId() != 0) {
+            if (deal.getCompanyId() != 0) {
+                StringBuilder discountDetails = new StringBuilder(deal.getDiscountDetails());
+                for (BitrixProductRows productRows : result.getResult()) {
+                    ProductData productData = productRepository.findById(productRows.getProductName())
+                            .orElseGet(ProductData::new);
                     BitrixResult<BitrixCompany> company = getCompany(deal.getCompanyId());
                     Optional<DiscountCli> discountCli = discountCliRepository.findById(new DiscountCliId(company.getResult().getNit(), productData.getCodigo()));
                     if (discountCli.isPresent()) {
-                        if (deal.getStageId().equals(StageEnum.COTIZACION.getValue()) && deal.getDiscountDetails().isEmpty()) {
+                        if ((deal.getStageId().equals(StageEnum.BANDEJA_DE_ENTRADA.getValue()) ||
+                                deal.getStageId().equals(StageEnum.COTIZACION.getValue()) ||
+                                deal.getStageId().equals(StageEnum.PEDIDO.getValue()))
+                                && deal.getDiscountDetails().isEmpty()) {
                             double discount = (double) Math.round(discountCli.get().getDescuento() * 100) / 100;
-                            double newPrice = productRows.getOriginalPrice() * (1 - (discount / 100));
-                            productRows.setOriginalPrice(newPrice);
-                            productRows.setPriceNet(newPrice);
-                            productRows.setBrutePrice(newPrice);
-                            productRows.setPrice(newPrice * (1 - (productRows.getDiscountRate() / 100)));
-                            deal.setDiscountDetails(deal.getDiscountDetails() + productData.getCodigo() + ": " + discount + "%" + "\n");
+                            double newPrice = productRows.getPriceNet() * (1 - (discount / 100));
+                            productRows.setPrice((double) Math.round((newPrice * (1 + ((double) productRows.getTax() / 100))) * (1 - (productRows.getDiscountRate() / 100)) * 100) / 100);
+                            productRows.setPriceExclusive((double) Math.round(newPrice * (1 - (productRows.getDiscountRate() / 100)) * 100) / 100);
+                            productRows.setPriceNet((double) Math.round(newPrice * 100) / 100);
+                            productRows.setBrutePrice((double) Math.round(newPrice * (1 + ((double) productRows.getTax() / 100)) * 100) / 100);
+                            discountDetails.append(deal.getDiscountDetails())
+                                    .append(productData.getCodigo())
+                                    .append(": ")
+                                    .append(discount)
+                                    .append("%")
+                                    .append("\n");
                             newToUpdate = true;
                         }
                         if (productRows.getPrice() < productData.getValor_unitario() * (1 - (discountCli.get().getDescuento() / 100))) {
@@ -267,11 +318,12 @@ public class Gateway {
                         comment.append("Producto: ").append(productRows.getProductName()).append(" tiene un menor precio del permitido\n");
                         newToUpdate = true;
                     }
-                } else {
-                    comment = new StringBuilder("No hay compañia asignada");
-                    newToUpdate = true;
+                    bitrixProductRows.add(productRows);
                 }
-                bitrixProductRows.add(productRows);
+                deal.setDiscountDetails(discountDetails.toString());
+            } else {
+                comment = new StringBuilder("No hay compañia asignada");
+                newToUpdate = true;
             }
 
             if (newToUpdate) {
@@ -337,7 +389,8 @@ public class Gateway {
                         .orElseGet(ProductData::new);
                 Optional<DiscountCli> discountCli = discountCliRepository.findById(new DiscountCliId(company.getNit(), productData.getCodigo()));
                 if (discountCli.isPresent()) {
-                    if (productRows.getPrice() < (productData.getPrecio_si_costo_cero() * (1 - (discountCli.get().getDescuento() / 100)))) {
+                    if (productRows.getDiscountRate() > 0 ||
+                            (productRows.getPriceExclusive() < (productData.getPrecio_si_costo_cero() * (1 - (discountCli.get().getDescuento() / 100))))) {
                         system1320Repository.save(System1320Data.builder()
                                 .item(productRows.getProductName())
                                 .usuario(userData != null ? userData.getUsuario() : "BITRIX")
@@ -346,9 +399,17 @@ public class Gateway {
                                 .nit(company.getNit())
                                 .condpagocliente(Integer.parseInt(company.getCondicion()))
                                 .notas(String.valueOf(deal.getId()))
-                                .mensaje("Valor de venta menor al permitido")
+                                .mensaje("Precio no puede ser menor que el precio mínimo de venta.  Item:" +
+                                        productRows.getProductName() +
+                                        " Descripción:" + productData.getDescripcion() +
+                                        " Precio mínimo: " + productData.getPrecio_si_costo_cero() +
+                                        " Precio lista: " + productData.getValor_unitario() +
+                                        " Valor venta:" + productRows.getPriceExclusive() +
+                                        " Descuento parametrizado: " + discountCli.get().getDescuento() +
+                                        " Descuento adicional: " + productRows.getDiscountRate()
+                                )
                                 .bodega(warehouse)
-                                .tipo_autorizacion("C")
+                                .tipo_autorizacion("F")
                                 .build());
                         needAutorization = true;
                     }
@@ -360,9 +421,15 @@ public class Gateway {
                             .Valor_Documento(deal.getAmount())
                             .nit(company.getNit())
                             .notas(String.valueOf(deal.getId()))
-                            .mensaje("Valor de venta menor al permitido")
+                            .mensaje("Precio no puede ser menor que el precio mínimo de venta.  Item:" +
+                                    productRows.getProductName() +
+                                    " Descripción:" + productData.getDescripcion() +
+                                    " Precio mínimo: " + productData.getPrecio_si_costo_cero() +
+                                    " Precio lista: " + productData.getValor_unitario() +
+                                    " Valor venta:" + productRows.getPriceExclusive()
+                            )
                             .bodega(warehouse)
-                            .tipo_autorizacion("C")
+                            .tipo_autorizacion("F")
                             .build());
                     needAutorization = true;
                 }
@@ -447,7 +514,7 @@ public class Gateway {
                         result.getResult().add(BitrixProductRows.builder()
                                 .productId(mapBitrixResult.getResult().get("products").getFirst().getId())
                                 .productName(productData.get().getCodigo())
-                                .originalPrice(productData.get().getValor_unitario())
+                                .price(productData.get().getValor_unitario())
                                 .quantity(1)
                                 .build());
 
@@ -462,6 +529,12 @@ public class Gateway {
             deal.setStageId(stage);
             if (!comments.isEmpty())
                 deal.setErrorMessage(getDateTime() + "\n" + comments + "\n\n" + deal.getErrorMessage());
+            bitrixUtils.updateDeal(BitrixUpdate.builder()
+                    .id(String.valueOf(deal.getId()))
+                    .fields(deal)
+                    .build());
+        } else {
+            deal.setStageId(StageEnum.SEGUIMIENTO_COTIZACION.getValue());
             bitrixUtils.updateDeal(BitrixUpdate.builder()
                     .id(String.valueOf(deal.getId()))
                     .fields(deal)
@@ -494,7 +567,7 @@ public class Gateway {
             AtomicReference<Double> totalPassDue = new AtomicReference<>((double) 0);
             quotaDataList.forEach(quotaData -> {
                 total.updateAndGet(v -> v + quotaData.getSaldo());
-                totalPending.updateAndGet(v -> v + quotaData.getVencida());
+                totalPending.updateAndGet(v -> v + quotaData.getSin_Vencer());
                 totalPassDue.updateAndGet(v -> v + quotaData.getVencida());
             });
 
@@ -506,10 +579,10 @@ public class Gateway {
                 message = "El Cliente paga de contado";
                 needUpdate = true;
             } else if (totalPassDue.get() > 0) {
-                message = "Cliente en mora por valor de: " + new DecimalFormat("#.################").format(totalPassDue.get());
+                message = "El Cliente está en mora por valor de: " + new DecimalFormat("#.################").format(totalPassDue.get());
                 needUpdate = true;
             } else if (totalPending.get() > 0 && total.get() + price > companyData.getCupo_credito()) {
-                message = "El Cliente no cuenta con cupo suficiente";
+                message = "Cupo de crédito es insuficiente, Cupo disponible: " + (companyData.getCupo_credito() - totalPending.get());
                 needUpdate = true;
             }
 
@@ -620,10 +693,16 @@ public class Gateway {
                 LocalDate date = LocalDate.now();
                 AtomicInteger seq = new AtomicInteger(1);
 
+                int deliveryCode = 0;
+                if (deal.getDeliveryAddress().startsWith("Dir:")) {
+                    String s = deal.getDeliveryAddress().strip().split(",")[0].strip().split(":")[1].replace(" ", "");
+                    deliveryCode = Integer.parseInt(s);
+                }
+
                 Optional<ConsecutiveData> consecutiveDataOptional = consecutiveRepository.findById(getDocumentNumber(warehouse));
                 try {
                     if (consecutiveDataOptional.isPresent()) {
-                        if (userData != null)
+                        if (userData == null)
                             deal.setErrorMessage(getDateTime() + "\nNo existe el vendedor en DMS" + "\n\n" + deal.getErrorMessage());
 
                         DocumentPed documentPed = documentPedRepository.save(DocumentPed.builder()
@@ -636,12 +715,13 @@ public class Gateway {
                                 .vendedor(userData != null ? userData.getNit() : 0)
                                 .diasValidez(Integer.parseInt(validDayMap.get(Integer.parseInt(deal.getValidDay())).split(" ")[0]))
                                 .condicion(companyData.getCondicion())
-                                .notas(deal.getComments().strip()) // revison caracteres especiales
+                                .notas(removeBBCode(deal.getComments().strip()))
                                 .usuario(userData != null ? userData.getUsuario() : "BITRIX")
                                 .Nit_Usuario(String.valueOf(userData != null ? userData.getNit() : 0))
                                 .concepto(concept)
                                 .concepto2(concept2)
-                                .documento(deal.getId())
+                                .documento(consecutiveDataOptional.get().getNext() + "-" + deal.getId())
+                                .codigo_direccion(deliveryCode)
                                 .build());
 
                         SoftJSDocumentPed softJSDocumentPed = softJSDocumentPedRepository.save(SoftJSDocumentPed.builder()
@@ -655,13 +735,35 @@ public class Gateway {
                                 .vendedor(documentPed.getVendedor())
                                 .diasvalidez(documentPed.getDiasValidez())
                                 .condicion(companyData.getCondicion())
-                                .notas(deal.getComments())
+                                .notas(removeBBCode(deal.getComments()))
                                 .usuario(userData != null ? userData.getUsuario() : "BITRIX")
                                 .usuarioactualizo(userData != null ? userData.getUsuario() : "BITRIX")
                                 .fechahoraactualizo(documentPed.getFecha_hora())
                                 .concepto(documentPed.getConcepto())
                                 .concepto2(documentPed.getConcepto2())
                                 .documento(documentPed.getDocumento())
+                                .codigodireccion(documentPed.getCodigo_direccion())
+                                .build());
+
+                        DocumentPedHistory documentPedHistory = documentPedHistoryRepository.save(DocumentPedHistory.builder()
+                                .pc(documentPed.getPc())
+                                .codigo_direccion(documentPed.getCodigo_direccion())
+                                .anulado(documentPed.getAnulado())
+                                .fletes(documentPed.getFletes())
+                                .numero(documentPed.getNumero())
+                                .bodega(documentPed.getBodega())
+                                .nit(documentPed.getNit())
+                                .valor_total(documentPed.getValor_total())
+                                .fecha(documentPed.getFecha())
+                                .fecha_hora(documentPed.getFecha_hora())
+                                .vendedor(documentPed.getVendedor())
+                                .diasValidez(documentPed.getDiasValidez())
+                                .condicion(documentPed.getCondicion())
+                                .notas(documentPed.getNotas())
+                                .usuario(documentPed.getUsuario())
+                                .concepto2(documentPed.getConcepto2())
+                                .documento(documentPed.getDocumento())
+                                .codigo_direccion(documentPed.getCodigo_direccion())
                                 .build());
 
                         Map<String, Integer> itemOtherUnit = getStringIntegerMap(deal);
@@ -684,19 +786,18 @@ public class Gateway {
                                 comment.getAndUpdate(s -> s + bitrixProductRows.getProductName() + "\n\n");
                                 throw new RuntimeException("No tiene stock disponible");
                             } else {
-                                Integer hasOtherUnit = itemOtherUnit.get(bitrixProductRows.getProductName());
+                                Integer hasOtherUnit = itemOtherUnit.get(bitrixProductRows.getProductName() + "_" + bitrixProductRows.getQuantity());
 
                                 DocumentLinPed documentLinPed = documentLinPedRepository.save(DocumentLinPed.builder()
                                         .seq(seq.getAndAdd(1))
                                         .codigo(bitrixProductRows.getProductName())
-                                        .cantidad(bitrixProductRows.getQuantity())
                                         .cantidad(bitrixProductRows.getQuantity())
                                         .valorUnitario(bitrixProductRows.getPrice())
                                         .numero(consecutiveDataOptional.get().getNext())
                                         .bodega(Integer.parseInt(warehouse))
                                         .porcentaje_iva(bitrixProductRows.getTax())
                                         .und(bitrixProductRows.getMeasure())
-                                        .despacho_virtual(0)
+                                        .despacho_virtual((int) bitrixProductRows.getQuantity())
                                         .cantidad_otra_und(hasOtherUnit != null && hasOtherUnit > 0 ? Math.round((bitrixProductRows.getQuantity() / hasOtherUnit) * 10000.0) / 10000.0 : 0)
                                         .cantidad_dos(hasOtherUnit != null ? hasOtherUnit : 0)
                                         .build());
@@ -709,14 +810,29 @@ public class Gateway {
                                         .numero(documentLinPed.getNumero())
                                         .valorunitario(documentLinPed.getValorUnitario())
                                         .codigo(bitrixProductRows.getProductName())
-                                        .notas(deal.getComments())
                                         .porcentajeiva(documentLinPed.getPorcentaje_iva())
                                         .und(documentLinPed.getUnd())
                                         .idsdp(softJSDocumentPed.getId())
                                         .cantidadotraund(documentLinPed.getCantidad_otra_und())
                                         .cantidaddos(documentLinPed.getCantidad_dos())
+                                        .notas("")
                                         .build());
-                                log.debug("Last record: {}", softJSDocumentLinPed.getId());
+
+                                DocumentLinPedHistory pedHistory = documentLinPedHistoryRepository.save(DocumentLinPedHistory.builder()
+                                        .id(documentLinPed.getId())
+                                        .seq(documentLinPed.getSeq())
+                                        .codigo(documentLinPed.getCodigo())
+                                        .cantidad(documentLinPed.getCantidad())
+                                        .valorUnitario(documentLinPed.getValorUnitario())
+                                        .numero(documentLinPed.getNumero())
+                                        .bodega(documentLinPed.getBodega())
+                                        .porcentaje_iva(documentLinPed.getPorcentaje_iva())
+                                        .und(documentLinPed.getUnd())
+                                        .despacho_virtual(documentLinPed.getDespacho_virtual())
+                                        .cantidad_und(documentLinPed.getCantidad_und())
+                                        .cantidad_dos(documentLinPed.getCantidad_dos())
+                                        .build());
+                                log.debug("Last record: {}", pedHistory.getId());
                             }
                         });
 
@@ -735,25 +851,36 @@ public class Gateway {
                     }
                 } catch (Exception e) {
                     DocumentPed documentPed = documentPedRepository.findByNumero(consecutiveDataOptional.get().getNext());
-                    documentPedRepository.delete(documentPed);
+                    if (documentPed != null) {
+                        documentPedRepository.delete(documentPed);
 
-                    SoftJSDocumentPed softJSDocumentPed = softJSDocumentPedRepository.findByNumero(consecutiveDataOptional.get().getNext());
-                    softJSDocumentPedRepository.delete(softJSDocumentPed);
+                        SoftJSDocumentPed softJSDocumentPed = softJSDocumentPedRepository.findByNumero(documentPed.getNumero());
+                        softJSDocumentPedRepository.delete(softJSDocumentPed);
 
-                    List<DocumentLinPed> documentLinPedList = documentLinPedRepository.findByNumero(documentPed.getNumero());
-                    documentLinPedRepository.deleteAll(documentLinPedList);
+                        DocumentPedHistory documentPedHistory = documentPedHistoryRepository.findByNumero(documentPed.getNumero());
+                        documentPedHistoryRepository.delete(documentPedHistory);
 
-                    List<SoftJSDocumentLinPed> softJSDocumentLinPeds = softJSDocumentLinPedRepository.findByNumero(documentPed.getNumero());
-                    softJSDocumentLinPedRepository.deleteAll(softJSDocumentLinPeds);
+                        List<DocumentLinPed> documentLinPedList = documentLinPedRepository.findByNumero(documentPed.getNumero());
+                        documentLinPedRepository.deleteAll(documentLinPedList);
 
-                    Pattern pattern = Pattern.compile("\\[(.*?)]");
+                        List<SoftJSDocumentLinPed> softJSDocumentLinPeds = softJSDocumentLinPedRepository.findByNumero(documentPed.getNumero());
+                        softJSDocumentLinPedRepository.deleteAll(softJSDocumentLinPeds);
+
+                        List<DocumentLinPedHistory> documentLinPedHistories = documentLinPedHistoryRepository.findByNumero(documentPed.getNumero());
+                        documentLinPedHistoryRepository.deleteAll(documentLinPedHistories);
+                    }
+
+                    deal.setErrorMessage(getDateTime() + "\nOcurrio un error, redirijase al area de soporte, " + e.getMessage() + "\n\n" + deal.getErrorMessage());
+                    log.error(e.getMessage());
+
+                    /*Pattern pattern = Pattern.compile("\\[(.*?)]");
                     Matcher matcher = pattern.matcher(e.getMessage());
                     if (matcher.find()) {
                         String sqlErrorMessage = matcher.group(1);
                         deal.setErrorMessage(getDateTime() + "\n" + sqlErrorMessage + ", El Pedido presenta Novedades de costo, redirijase al area encargada" + "\n\n" + deal.getErrorMessage());
                     } else {
                         deal.setErrorMessage(getDateTime() + "\nOcurrio un error con la base de datos, redirijase al area encargada, " + e.getMessage() + "\n\n" + deal.getErrorMessage());
-                    }
+                    }*/
 
                     stage = StageEnum.SEGUIMIENTO_COTIZACION.getValue();
                 }
@@ -774,35 +901,22 @@ public class Gateway {
     }
 
     private void cancelOrder(BitrixDeal deal) {
-        String numberOrder = deal.getNoOrder();
+        if (deal.getNoOrder() != null) {
+            int numberOrder = Integer.parseInt(deal.getNoOrder());
 
-        DocumentPed documentPed = documentPedRepository.findByNumero(Integer.parseInt(numberOrder));
+            DocumentPed documentPed = documentPedRepository.findByNumero(numberOrder);
+            DocumentPedHistory documentPedHistory = documentPedHistoryRepository.findByNumero(numberOrder);
 
-        List<DocumentLinPed> documentLinPedList = documentLinPedRepository.findByNumero(documentPed.getNumero());
-        documentLinPedList.forEach(documentLinPed -> documentLinPedHistoryRepository.save(DocumentLinPedHistory.builder()
-                .id(documentLinPedHistoryRepository.findTop1ByOrderByIdDesc().getId() + 1)
-                .sw(documentLinPed.getSw())
-                .adicional(documentLinPed.getAdicional())
-                .cantidad_despachada(documentLinPed.getCantidad_despachada())
-                .cantidad_und(documentLinPed.getCantidad_und())
-                .porc_dcto_2(documentLinPed.getPorc_dcto_2())
-                .porc_dcto_3(documentLinPed.getPorc_dcto_3())
-                .porcentaje_descuento(documentLinPed.getPorcentaje_descuento())
-                .bodega(documentLinPed.getBodega())
-                .cantidad(documentLinPed.getCantidad())
-                .codigo(documentLinPed.getCodigo())
-                .despacho_virtual(documentLinPed.getDespacho_virtual())
-                .seq(documentLinPed.getSeq())
-                .und(documentLinPed.getUnd())
-                .porcentaje_iva(documentLinPed.getPorcentaje_iva())
-                .valorUnitario(documentLinPed.getValorUnitario())
-                .numero(documentLinPed.getNumero())
-                .build()));
+            List<DocumentLinPed> documentLinPedList = documentLinPedRepository.findByNumero(documentPed.getNumero());
 
-        documentLinPedRepository.deleteAllById(documentLinPedList.stream().map(DocumentLinPed::getId).toList());
+            documentLinPedRepository.deleteAllById(documentLinPedList.stream().map(DocumentLinPed::getId).toList());
 
-        documentPed.setAnulado(1);
-        documentPedRepository.save(documentPed);
+            documentPed.setAnulado(1);
+            documentPedRepository.save(documentPed);
+
+            documentPedHistory.setAnulado(1);
+            documentPedHistoryRepository.save(documentPedHistory);
+        }
     }
 
     public void paymentValidation(Payment model) throws BitrixException {
@@ -899,7 +1013,7 @@ public class Gateway {
 
     public void updateBillStatus(Bill bill) {
         if (bill.getTipo().equals("FVE1")) {
-            log.info(bill.toString());
+            log.debug(bill.toString());
             BitrixResult<List<BitrixDeal>> result = bitrixUtils.getDealByField(BitrixGetList.builder()
                             .filter(Map.of("UF_CRM_1743530021292", bill.getNumero()))
                             .build())
@@ -926,10 +1040,11 @@ public class Gateway {
     }
 
     public void createOrUpdateContact(Contact contact) {
-        migrationAppUtil.createOrUpdateContact(Customer.builder()
-                .companyId(Integer.valueOf(contact.getNit()))
-                .customerId(Integer.valueOf(contact.getContacto()))
-                .build());
+        if (contact.getNit() != null && contact.getContacto() != null)
+            migrationAppUtil.createOrUpdateContact(Customer.builder()
+                    .companyId(Integer.valueOf(contact.getNit()))
+                    .customerId(Integer.valueOf(contact.getContacto()))
+                    .build());
     }
 
     private BitrixResult<BitrixDeal> getDeal(long id) throws BitrixException {
@@ -983,7 +1098,7 @@ public class Gateway {
             for (BitrixProductRows productRows : result.getResult()) {
                 ProductData productData = productRepository.findByCodigo(productRows.getProductName());
                 if (productData != null && productData.getManeja_otra_und() != null && productData.getManeja_otra_und().equals("S"))
-                    otherUnitItems.append(productData.getCodigo()).append(": /\n");
+                    otherUnitItems.append(productData.getCodigo()).append("_").append(productRows.getQuantity()).append(": /\n");
             }
             if (!otherUnitItems.isEmpty())
                 otherUnitItems.deleteCharAt(otherUnitItems.lastIndexOf("/"));
@@ -994,7 +1109,12 @@ public class Gateway {
             StringBuilder otherUnitItems = new StringBuilder();
             StringBuilder otherUnitDetails = new StringBuilder();
             for (BitrixProductRows productRows : result.getResult()) {
-                Integer other = itemOtherUnit.get(productRows.getProductName());
+                if (!itemOtherUnit.containsKey(productRows.getProductName() + "_" + productRows.getQuantity())) {
+                    ProductData productData = productRepository.findByCodigo(productRows.getProductName());
+                    if (productData != null && productData.getManeja_otra_und() != null && productData.getManeja_otra_und().equals("S"))
+                        itemOtherUnit.put(productRows.getProductName() + "_" + productRows.getQuantity(), 1);
+                }
+                Integer other = itemOtherUnit.get(productRows.getProductName() + "_" + productRows.getQuantity());
                 if (other != null) {
                     otherUnitDetails
                             .append(productRows.getProductName())
@@ -1009,15 +1129,24 @@ public class Gateway {
                             .append(" ")
                             .append(productRows.getMeasure())
                             .append(" C/U\n");
-                    otherUnitItems
-                            .append(productRows.getProductName())
+                    otherUnitItems.append(productRows.getProductName())
+                            .append("_")
+                            .append(productRows.getQuantity())
                             .append(": ")
-                            .append(other);
+                            .append(other)
+                            .append(" /\n");
                 }
             }
+            if (!otherUnitItems.isEmpty())
+                otherUnitItems.deleteCharAt(otherUnitItems.lastIndexOf("/"));
             deal.setOtherUnits(otherUnitItems.toString());
             deal.setDetailsOtherUnit(otherUnitDetails.toString());
         }
+
+        bitrixUtils.updateDeal(BitrixUpdate.builder()
+                .id(String.valueOf(deal.getId()))
+                .fields(deal)
+                .build());
     }
 
     private static Map<String, Integer> getStringIntegerMap(BitrixDeal deal) {
@@ -1029,13 +1158,20 @@ public class Gateway {
                 String[] temp = s.split(":");
                 if (temp.length > 1) {
                     String quantity = temp[1].replace(",", ".").replaceAll("\\..*$", "").replaceAll("[^0-9]", "");
-                    itemOtherUnit.put(temp[0].strip(), Integer.parseInt(quantity));
+                    if (!quantity.isEmpty())
+                        itemOtherUnit.put(temp[0].strip(), Integer.parseInt(quantity));
+                    else
+                        itemOtherUnit.put(temp[0].strip(), 1);
                 } else {
                     itemOtherUnit.put(temp[0].strip(), 1);
                 }
             }
         }
         return itemOtherUnit;
+    }
+
+    public String removeBBCode(String input) {
+        return input.replaceAll("\\[(/)?[a-zA-Z]+(?:=[^]]*)?]", "");
     }
 
     @Scheduled(fixedRate = 10000) // Run every minute

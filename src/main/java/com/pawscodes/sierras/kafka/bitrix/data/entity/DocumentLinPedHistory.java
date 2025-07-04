@@ -41,7 +41,7 @@ public class DocumentLinPedHistory {
     int porc_dcto_2 = 0;
     @Builder.Default
     int porc_dcto_3 = 0;
-    int despacho_virtual;
+    double despacho_virtual;
     double cantidad_otra_und;
     Integer cantidad_dos;
 }

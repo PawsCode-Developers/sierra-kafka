@@ -46,4 +46,5 @@ public class ProductData {
     ProductSubGroup3Data subgrupo3;
     String maneja_otra_und;
     String otra_und;
+    int maneja_inventario;
 }

@@ -94,4 +94,10 @@ public class BitrixDeal {
 
     @JsonProperty("UF_CRM_1750204659")
     String clientState;
+
+    @JsonProperty("UF_CRM_1753282645800")
+    String productionEndDate;
+
+    @JsonProperty("UF_CRM_1753283405")
+    String detailsBill;
 }

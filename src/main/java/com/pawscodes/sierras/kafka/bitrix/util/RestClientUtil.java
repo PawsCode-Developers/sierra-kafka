@@ -1,5 +1,6 @@
 package com.pawscodes.sierras.kafka.bitrix.util;
 
+import com.pawscodes.sierras.kafka.bitrix.exception.CustomException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -20,7 +21,7 @@ public class RestClientUtil {
             limiter.waitIfNeeded();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException("Wait interrupted", e);
+            throw new CustomException("Wait interrupted", e);
         }
 
         return restClient

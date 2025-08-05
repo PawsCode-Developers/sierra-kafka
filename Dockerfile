@@ -5,7 +5,7 @@ WORKDIR $APP_HOME
 
 RUN gradle build
 
-FROM eclipse-temurin:22-jre-alpine
+FROM eclipse-temurin:21-jre-alpine
 ENV APP_HOME=/usr/app
 
 WORKDIR $APP_HOME

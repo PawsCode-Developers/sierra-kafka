@@ -8,21 +8,16 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-
 @Data
 @Entity
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "auditoria")
-public class AuditData {
+@Table(name = "softjs_ped_control_anulacion")
+public class SoftJSPedControlAnnulation {
     @Id
+    int numero;
     @Builder.Default
-    LocalDateTime fecha = LocalDateTime.now(ZoneId.of("America/Bogota"));
-    @Builder.Default
-    String pc = "BITRIX";
-    String usuario;
-    String que;
+    int sw = 1;
+    int bodega;
 }

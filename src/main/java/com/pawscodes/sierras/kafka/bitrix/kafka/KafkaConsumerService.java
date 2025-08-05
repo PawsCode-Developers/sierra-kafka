@@ -69,6 +69,17 @@ public class KafkaConsumerService {
             log.debug("Payment: {}", message);
     }
 
+    @KafkaListener(topics = "master.SIERRAS.dbo.softjs_prd_planeado_enc")
+    public void consumePrdPlanProcess(@Payload(required = false) String message) {
+        if (message != null && !message.isEmpty()) {
+            PayloadKafka<PrdPlanProcess> model = mappingUtil.convertToType(message, new TypeReference<>() {
+            });
+            log.debug("Received message softjs_prd_planeado_enc: {}", model);
+            gateway.startPrdProcess(model.getAfter());
+        } else
+            log.debug("PrdPlanProcess: {}", message);
+    }
+
     @KafkaListener(topics = "master.SIERRAS.dbo.softjs_prd_proceso_actividad_start_stop")
     public void consumePrdProcess(@Payload(required = false) String message) {
         if (message != null && !message.isEmpty()) {

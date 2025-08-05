@@ -5,6 +5,8 @@ import com.pawscodes.sierras.kafka.bitrix.data.entity.*;
 import com.pawscodes.sierras.kafka.bitrix.data.entity.composeId.DiscountCliId;
 import com.pawscodes.sierras.kafka.bitrix.data.entity.composeId.StockDataId;
 import com.pawscodes.sierras.kafka.bitrix.exception.BitrixException;
+import com.pawscodes.sierras.kafka.bitrix.exception.CustomException;
+import com.pawscodes.sierras.kafka.bitrix.exception.SecondUnitException;
 import com.pawscodes.sierras.kafka.bitrix.model.Customer;
 import com.pawscodes.sierras.kafka.bitrix.model.bitrix.*;
 import com.pawscodes.sierras.kafka.bitrix.model.kafka.table.*;
@@ -13,12 +15,13 @@ import com.pawscodes.sierras.kafka.bitrix.util.MigrationAppUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.HttpClientErrorException;
 
 import java.text.DecimalFormat;
+import java.text.NumberFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -27,15 +30,17 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Slf4j
 @Component
 public class Gateway {
 
-    private static final long EVICTION_DELAY_MS = 60 * 1000;
-    private final Map<String, String> BLOCK = Map.of("0", "Activo", "1", "Inactivo", "2", "Bloqueado", "3", "No se puede usar");
+    private static final long EVICTION_DELAY_MS = 60000;
+    private static final Map<String, String> BLOCK = Map.of("0", "Activo", "1", "Inactivo", "2", "Bloqueado", "3", "No se puede usar");
     ConcurrentHashMap<Long, Long> timedMap = new ConcurrentHashMap<>();
     ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
 
@@ -53,6 +58,7 @@ public class Gateway {
     private final System1320Repository system1320Repository;
     private final PrdProcessRepository prdProcessRepository;
     private final CompanyDirRepository companyDirRepository;
+    private final BillStatusRepository billStatusRepository;
     private final ConsecutiveRepository consecutiveRepository;
     private final DocumentPedRepository documentPedRepository;
     private final DiscountCliRepository discountCliRepository;
@@ -60,11 +66,12 @@ public class Gateway {
     private final DocumentLinPedRepository documentLinPedRepository;
     private final System1320HistoryRepository system1320HistoryRepository;
     private final SoftJSDocumentPedRepository softJSDocumentPedRepository;
+    private final StockDependenciesRepository stockDependenciesRepository;
     private final DocumentPedHistoryRepository documentPedHistoryRepository;
     private final SoftJSDocumentLinPedRepository softJSDocumentLinPedRepository;
     private final DocumentLinPedHistoryRepository documentLinPedHistoryRepository;
 
-    public Gateway(BitrixUtils bitrixUtils, MigrationAppUtil migrationAppUtil, UserRepository userRepository, StockRepository stockRepository, AuditRepository auditRepository, QuotaRepository quotaRepository, ProductRepository productRepository, CompanyRepository companyRepository, ConceptRepository conceptRepository, Concept2Repository concept2Repository, System1320Repository system1320Repository, PrdProcessRepository prdProcessRepository, CompanyDirRepository companyDirRepository, ConsecutiveRepository consecutiveRepository, DocumentPedRepository documentPedRepository, DiscountCliRepository discountCliRepository, FreightConfigRepository freightConfigRepository, DocumentLinPedRepository documentLinPedRepository, System1320HistoryRepository system1320HistoryRepository, SoftJSDocumentPedRepository softJSDocumentPedRepository, DocumentPedHistoryRepository documentPedHistoryRepository, SoftJSDocumentLinPedRepository softJSDocumentLinPedRepository, DocumentLinPedHistoryRepository documentLinPedHistoryRepository) {
+    public Gateway(BitrixUtils bitrixUtils, MigrationAppUtil migrationAppUtil, UserRepository userRepository, StockRepository stockRepository, AuditRepository auditRepository, QuotaRepository quotaRepository, ProductRepository productRepository, CompanyRepository companyRepository, ConceptRepository conceptRepository, Concept2Repository concept2Repository, System1320Repository system1320Repository, PrdProcessRepository prdProcessRepository, CompanyDirRepository companyDirRepository, BillStatusRepository billStatusRepository, ConsecutiveRepository consecutiveRepository, DocumentPedRepository documentPedRepository, DiscountCliRepository discountCliRepository, FreightConfigRepository freightConfigRepository, DocumentLinPedRepository documentLinPedRepository, System1320HistoryRepository system1320HistoryRepository, SoftJSDocumentPedRepository softJSDocumentPedRepository, StockDependenciesRepository stockDependenciesRepository, DocumentPedHistoryRepository documentPedHistoryRepository, SoftJSDocumentLinPedRepository softJSDocumentLinPedRepository, DocumentLinPedHistoryRepository documentLinPedHistoryRepository) {
         this.bitrixUtils = bitrixUtils;
         this.migrationAppUtil = migrationAppUtil;
         this.userRepository = userRepository;
@@ -78,6 +85,7 @@ public class Gateway {
         this.system1320Repository = system1320Repository;
         this.prdProcessRepository = prdProcessRepository;
         this.companyDirRepository = companyDirRepository;
+        this.billStatusRepository = billStatusRepository;
         this.consecutiveRepository = consecutiveRepository;
         this.documentPedRepository = documentPedRepository;
         this.discountCliRepository = discountCliRepository;
@@ -85,6 +93,7 @@ public class Gateway {
         this.documentLinPedRepository = documentLinPedRepository;
         this.system1320HistoryRepository = system1320HistoryRepository;
         this.softJSDocumentPedRepository = softJSDocumentPedRepository;
+        this.stockDependenciesRepository = stockDependenciesRepository;
         this.documentPedHistoryRepository = documentPedHistoryRepository;
         this.softJSDocumentLinPedRepository = softJSDocumentLinPedRepository;
         this.documentLinPedHistoryRepository = documentLinPedHistoryRepository;
@@ -95,39 +104,47 @@ public class Gateway {
                 .anyMatch(stageEnum -> stageEnum.getValue().equalsIgnoreCase(deal.getStageId()));
     }
 
-    public void process(Long request) throws BitrixException {
+    public void process(Long request) throws BitrixException, SecondUnitException {
         if (timedMap.get(request) == null) {
             timedMap.put(request, System.currentTimeMillis());
-            BitrixResult<BitrixDeal> deal = getDeal(request);
+            BitrixResult<BitrixDeal> bitrixResult = getDeal(request);
 
-            if (filterFunnel(deal.getResult())) {
+            if (filterFunnel(bitrixResult.getResult())) {
                 log.info("Deal {}, start processing", request);
-                if (validateOrder(deal.getResult())) {
-                    String stageId = deal.getResult().getStageId();
-                    BitrixResult<List<BitrixProductRows>> result = validatePrice(deal.getResult());
-                    getOtherUnit(deal.getResult(), result);
+                BitrixDeal deal = bitrixResult.getResult();
+                if (deal.getStageId().equals(StageEnum.CERRADO_PERDIDO.getValue()))
+                    cancelOrder(deal);
+                else if (validateOrder(deal) && filterOtherUnit(deal)) {
+                    String stageId = deal.getStageId();
+                    BitrixResult<List<BitrixProductRows>> result = validatePrice(deal);
+                    getOtherUnit(deal, result);
                     if (stageId.equals(StageEnum.BANDEJA_DE_ENTRADA.getValue()))
-                        addClientInformation(deal.getResult(), result);
-                    else {
-                        if (stageId.equals(StageEnum.COTIZACION.getValue()))
-                            processQuote(deal.getResult(), result);
-                        else if (stageId.equals(StageEnum.PEDIDO.getValue()))
-                            processOrder(deal.getResult(), result);
-                        else if (stageId.equals(StageEnum.SEGUIMIENTO_DEL_PEDIDO.getValue()))
-                            validateOrderPrice(deal.getResult(), result);
-                        else if (stageId.equals(StageEnum.CERRADO_PERDIDO.getValue()))
-                            cancelOrder(deal.getResult());
-                    }
+                        addClientInformation(deal);
+                    else if (stageId.equals(StageEnum.COTIZACION.getValue()))
+                        processQuote(deal, result);
+                        //else if (stageId.equals(StageEnum.SEGUIMIENTO_COTIZACION.getValue()))
+                        //authoriseQuote(deal);
+                    else if (stageId.equals(StageEnum.PEDIDO.getValue()))
+                        processOrder(deal, result);
+                    else if (stageId.equals(StageEnum.SEGUIMIENTO_DEL_PEDIDO.getValue()))
+                        validateOrderPrice(deal, result);
                 }
-                log.info("Deal process finish");
+                log.info("Deal {}, process finish at: {} secs", request, (double) (System.currentTimeMillis() - timedMap.get(request)) / 1000);
             }
-            executorService.schedule(() -> {
-                timedMap.remove(request);
-            }, 3, TimeUnit.SECONDS);
+            executorService.schedule(() -> timedMap.remove(request), 5, TimeUnit.SECONDS);
         }
     }
 
-    private void addClientInformation(BitrixDeal deal, BitrixResult<List<BitrixProductRows>> result) throws BitrixException {
+    private boolean filterOtherUnit(BitrixDeal result) {
+        return result.getStageId().equals(StageEnum.BANDEJA_DE_ENTRADA.getValue()) ||
+                result.getStageId().equals(StageEnum.COTIZACION.getValue()) ||
+                result.getStageId().equals(StageEnum.VALIDACION_COTIZACION.getValue()) ||
+                result.getStageId().equals(StageEnum.SEGUIMIENTO_COTIZACION.getValue()) ||
+                result.getStageId().equals(StageEnum.VALIDACION_PAGO_CUPO.getValue()) ||
+                result.getStageId().equals(StageEnum.PEDIDO.getValue());
+    }
+
+    private void addClientInformation(BitrixDeal deal) throws BitrixException {
         if (deal.getAddresses().isEmpty() && deal.getCompanyId() != 0) {
             BitrixCompany company = getCompany(deal.getCompanyId()).getResult();
             CompanyData companyData = companyRepository.findByNit(company.getNit());
@@ -138,6 +155,7 @@ public class Gateway {
                             .build())
                     .getBody();
 
+            assert customFields != null;
             Map<String, Integer> clientStatus = customFields
                     .getResult()
                     .getFirst()
@@ -148,17 +166,26 @@ public class Gateway {
                             BitrixCustomFields.ListItem::getId
                     ));
 
-            deal.setClientState(String.valueOf(clientStatus.get(BLOCK.get(companyData.getBloqueo()))));
+            deal.setClientState(String.valueOf(clientStatus.get(BLOCK.get(companyData.getBloqueo() != null ? companyData.getBloqueo() : 0))));
             deal.setAddresses("");
 
             if (companyData.getDireccion() != null) {
-                deal.setAddresses("Dir: 0, " + companyData.getDireccion() + "\n");
-                deal.setDeliveryAddress("Dir: 0, " + companyData.getDireccion() + "\n");
+                deal.setAddresses("Dir: 0, " + companyData.getDireccion() + " | " +
+                        companyData.getYPais().getDescripcion() + ", " +
+                        companyData.getYDpto().getDescripcion() + ", " +
+                        companyData.getYCiudad().getDescripcion() + "\n");
+                deal.setDeliveryAddress("Dir: 0, " + companyData.getDireccion() + " | " +
+                        companyData.getYPais().getDescripcion() + ", " +
+                        companyData.getYDpto().getDescripcion() + ", " +
+                        companyData.getYCiudad().getDescripcion() + "\n");
             }
 
             companyDirData.forEach(companyDirData1 -> {
                 if (companyDirData1.getDir_activa() != null && companyDirData1.getDir_activa().equals("S"))
-                    deal.setAddresses(deal.getAddresses() + "Dir: " + companyDirData1.getCodigoDireccion() + ", " + companyDirData1.getDireccion() + ", " + companyDirData1.getCiudad() + "\n");
+                    deal.setAddresses(deal.getAddresses() + "Dir: " + companyDirData1.getCodigoDireccion() + ", " + companyDirData1.getDireccion() + " | " +
+                            companyDirData1.getYPais().getDescripcion() + ", " +
+                            companyDirData1.getYDpto().getDescripcion() + ", " +
+                            companyDirData1.getYCiudad().getDescripcion() + "\n");
             });
         }
 
@@ -168,7 +195,48 @@ public class Gateway {
                 .build());
     }
 
+    private void authoriseQuote(BitrixDeal deal) throws BitrixException {
+        if (deal.getModifyId() != 40) {
+            Optional<System1320HistoryData> historyDataOptional = system1320HistoryRepository.findFirstByOrderByIdDesc();
+            if (historyDataOptional.isPresent()) {
+                BitrixCompany company = getCompany(deal.getCompanyId()).getResult();
+                List<System1320Data> system1320DataList = system1320Repository.findByNitAndNotas(company.getNit(), String.valueOf(deal.getId()));
+
+                system1320Repository.deleteAllById(system1320DataList.stream()
+                        .map(System1320Data::getId)
+                        .mapToInt(Long::intValue)
+                        .boxed()
+                        .toList());
+
+                AtomicLong id = new AtomicLong(historyDataOptional.get().getId() + 1);
+                system1320DataList.forEach(system1320Data -> {
+                    system1320HistoryRepository.save(System1320HistoryData.builder()
+                            .id(id.get())
+                            .nit(company.getNit())
+                            .mensaje(system1320Data.getMensaje())
+                            .chat(system1320Data.getChat())
+                            .usuario(system1320Data.getUsuario())
+                            .usuario_autorizo(system1320Data.getUsuario_autorizo())
+                            .autorizado(1)
+                            .Valor_Documento(system1320Data.getValor_Documento())
+                            .fecha_hora(system1320Data.getFecha_hora())
+                            .fecha_hora_a(system1320Data.getFecha_hora_a())
+                            .programa("INTEGRACION BITRIX - " + system1320Data.getNotas() + " - " + (system1320Data.getItem() != null ? system1320Data.getItem() : "CLIENTE"))
+                            .pc_a(system1320Data.getPc_a())
+                            .build());
+                    id.addAndGet(1);
+                });
+            }
+        }
+    }
+
+    private boolean getAuthorization(BitrixDeal deal) throws BitrixException {
+        authoriseQuote(deal);
+        return deal.getModifyId() != 40;
+    }
+
     private void validateOrderPrice(BitrixDeal deal, BitrixResult<List<BitrixProductRows>> result) throws BitrixException {
+        //if (getAuthorization(deal)) {
         AtomicBoolean hasToUpdateBitrixProducts = new AtomicBoolean(false);
         int noOrder = Integer.parseInt(deal.getNoOrder());
         DocumentPed ped = documentPedRepository.findByNumero(noOrder);
@@ -179,6 +247,7 @@ public class Gateway {
                         .filter(Map.of("ID", deal.getAssigned()))
                         .build())
                 .getBody();
+        assert userList != null;
         UserData userData = userRepository.findByCorreointbitrix(userList.getResult().getFirst().getEmail());
 
         if (ped != null && userData != null && ped.getVendedor() != userData.getNit()) {
@@ -198,7 +267,7 @@ public class Gateway {
             DocumentLinPedHistory linPedHistory = documentLinPedHistoryRepository.findByNumeroAndCodigoAndSeq(noOrder, productRows.getProductName(), count.get());
             SoftJSDocumentLinPed softJSDocumentLinPed = softJSDocumentLinPedRepository.findByNumeroAndCodigoAndSeq(noOrder, productRows.getProductName(), count.get());
             if (linPed != null) {
-                if (linPed.getValorUnitario() != productRows.getPrice()) {
+                if (linPed.getValorUnitario() != productRows.getPriceExclusive()) {
                     productRows.setPrice(linPed.getValorUnitario());
                     hasToUpdateBitrixProducts.set(true);
                 }
@@ -284,12 +353,20 @@ public class Gateway {
                     .rows(result.getResult())
                     .build());
         }
+        /*} else {
+            deal.setStageId(StageEnum.PEDIDO.getValue());
+            bitrixUtils.updateDeal(BitrixUpdate.builder()
+                    .id(String.valueOf(deal.getId()))
+                    .fields(result)
+                    .build());
+        }*/
     }
 
     private boolean validateOrder(BitrixDeal result) {
         if (!result.getNoOrder().isEmpty() && (
                 result.getStageId().equals(StageEnum.BANDEJA_DE_ENTRADA.getValue()) ||
                         result.getStageId().equals(StageEnum.COTIZACION.getValue()) ||
+                        result.getStageId().equals(StageEnum.VALIDACION_COTIZACION.getValue()) ||
                         result.getStageId().equals(StageEnum.SEGUIMIENTO_COTIZACION.getValue()) ||
                         result.getStageId().equals(StageEnum.VALIDACION_PAGO_CUPO.getValue()) ||
                         result.getStageId().equals(StageEnum.PEDIDO.getValue())
@@ -312,23 +389,31 @@ public class Gateway {
         boolean newToUpdate = false;
         boolean updateTax = false;
 
-        if (result.getResult().isEmpty()) {
+        if (deal.getStageId().equals(StageEnum.CERRADO_PERDIDO.getValue()))
+            return result;
+        else if (result != null && result.getResult().isEmpty()) {
             deal.setErrorMessage(getDateTime() + "\nNo tiene productos" + "\n\n" + deal.getErrorMessage());
             deal.setStageId(StageEnum.BANDEJA_DE_ENTRADA.getValue());
             bitrixUtils.updateDeal(BitrixUpdate.builder()
                     .id(String.valueOf(deal.getId()))
                     .fields(deal)
                     .build());
+            return result;
         } else {
             if (deal.getCompanyId() != 0) {
-                StringBuilder discountDetails = new StringBuilder(deal.getDiscountDetails());
+                deal.setDiscountDetails("");
+                StringBuilder discountDetails = new StringBuilder();
+                double tax = 0.0;
                 for (BitrixProductRows productRows : result.getResult()) {
                     ProductData productData = productRepository.findById(productRows.getProductName())
                             .orElseGet(ProductData::new);
                     BitrixResult<BitrixCompany> company = getCompany(deal.getCompanyId());
                     CompanyData companyData = companyRepository.findByNit(company.getResult().getNit());
 
-                    if (companyData.getEs_excento_iva() != null) {
+                    if (companyData.getEs_excento_iva() != null && productData.getManeja_inventario() == 1 && productRows.getTax() != 0) {
+                        tax += (productRows.getBrutePrice() - productRows.getPriceNet()) * productRows.getQuantity();
+                        productRows.setPrice(productRows.getPriceExclusive());
+                        productRows.setBrutePrice(productRows.getPriceNet());
                         productRows.setTax(0);
                         newToUpdate = true;
                         updateTax = true;
@@ -336,22 +421,28 @@ public class Gateway {
 
                     Optional<DiscountCli> discountCli = discountCliRepository.findById(new DiscountCliId(company.getResult().getNit(), productData.getCodigo()));
                     if (discountCli.isPresent()) {
-                        if ((deal.getStageId().equals(StageEnum.BANDEJA_DE_ENTRADA.getValue()) ||
+                        if (deal.getStageId().equals(StageEnum.BANDEJA_DE_ENTRADA.getValue()) ||
                                 deal.getStageId().equals(StageEnum.COTIZACION.getValue()) ||
-                                deal.getStageId().equals(StageEnum.PEDIDO.getValue()))
-                                && deal.getDiscountDetails().isEmpty()) {
+                                deal.getStageId().equals(StageEnum.PEDIDO.getValue())) {
+                            double oldPrice = productData.getValor_unitario();
                             double discount = (double) Math.round(discountCli.get().getDescuento() * 100) / 100;
-                            double newPrice = productRows.getPriceNet() * (1 - (discount / 100));
+                            double newPrice = oldPrice * (1 - (discount / 100));
                             productRows.setPrice((double) Math.round((newPrice * (1 + ((double) productRows.getTax() / 100))) * (1 - (productRows.getDiscountRate() / 100)) * 100) / 100);
                             productRows.setPriceExclusive((double) Math.round(newPrice * (1 - (productRows.getDiscountRate() / 100)) * 100) / 100);
                             productRows.setPriceNet((double) Math.round(newPrice * 100) / 100);
                             productRows.setBrutePrice((double) Math.round(newPrice * (1 + ((double) productRows.getTax() / 100)) * 100) / 100);
                             discountDetails.append(deal.getDiscountDetails())
+                                    .append("Ref: ")
                                     .append(productData.getCodigo())
-                                    .append(": ")
+                                    .append(" - Desc2: ")
                                     .append(discount)
-                                    .append("%")
-                                    .append("\n");
+                                    .append("% - Ant: ")
+                                    .append(NumberFormat.getCurrencyInstance().format(oldPrice))
+                                    .append(" - Nue: ")
+                                    .append(NumberFormat.getCurrencyInstance().format(newPrice))
+                                    .append("- DescBtx: ")
+                                    .append(productRows.getDiscountRate())
+                                    .append("%\n");
                             newToUpdate = true;
                         }
                         if (productRows.getPrice() < productData.getValor_unitario() * (1 - (discountCli.get().getDescuento() / 100))) {
@@ -368,6 +459,8 @@ public class Gateway {
                     }
                     bitrixProductRows.add(productRows);
                 }
+                if (updateTax)
+                    deal.setAmount(deal.getAmount() - tax);
                 deal.setDiscountDetails(discountDetails.toString());
             } else {
                 comment = new StringBuilder("No hay compañia asignada");
@@ -404,6 +497,7 @@ public class Gateway {
                         .filter(Map.of("ID", deal.getAssigned()))
                         .build())
                 .getBody();
+        assert userList != null;
         UserData userData = userRepository.findByCorreointbitrix(userList.getResult().getFirst().getEmail());
 
         BitrixResult<List<BitrixCustomFields>> customFields = bitrixUtils.getDealCustomFields(BitrixGetList.builder()
@@ -411,6 +505,7 @@ public class Gateway {
                         .build())
                 .getBody();
 
+        assert customFields != null;
         Map<Integer, String> warehouseMap = customFields
                 .getResult()
                 .getFirst()
@@ -487,107 +582,111 @@ public class Gateway {
     }
 
     private void processQuote(BitrixDeal deal, BitrixResult<List<BitrixProductRows>> result) throws BitrixException {
-        if (result.getResult().stream().noneMatch(bitrixProductRows -> bitrixProductRows.getProductName().contains("FLETES"))) {
-            String stage = StageEnum.SEGUIMIENTO_COTIZACION.getValue();
-            String comments = "";
-            double price = 0;
-            if (result.getResult().isEmpty()) {
-                stage = StageEnum.BANDEJA_DE_ENTRADA.getValue();
-                comments = "No se encontro ningun producto";
-            } else {
-                boolean isChemist = false;
-                for (BitrixProductRows productRows : result.getResult()) {
-                    ProductData productData = productRepository.findByCodigo(productRows.getProductName());
-                    if (productData != null && productData.getGrupo().getDescripcion().equals("QUIMICOS"))
-                        isChemist = true;
-                    price += productRows.getPrice() * productRows.getQuantity();
-                }
-
-                BitrixResult<BitrixCompany> company = getCompany(deal.getCompanyId());
-                CompanyData companyData = companyRepository.findByNit(company.getResult().getNit());
-
-                BitrixResult<List<BitrixCustomFields>> customFields = bitrixUtils.getDealCustomFields(BitrixGetList.builder()
-                                .filter(Map.of("FIELD_NAME", "UF_CRM_1744648899"))
-                                .build())
-                        .getBody();
-
-                Map<Integer, String> freightTypes = customFields.getResult()
-                        .getFirst()
-                        .getValues()
-                        .stream()
-                        .collect(Collectors.toMap(BitrixCustomFields.ListItem::getId, BitrixCustomFields.ListItem::getValue));
-
-                int deliveryCode = 0;
-                if (!deal.getDeliveryAddress().isEmpty() && !deal.getDeliveryAddress().startsWith("Dir:")) {
-                    deliveryCode = -1;
-                } else if (deal.getDeliveryAddress().startsWith("Dir:")) {
-                    String s = deal.getDeliveryAddress().strip().split(",")[0].strip().split(":")[1].replace(" ", "");
-                    deliveryCode = Integer.parseInt(s);
-                }
-                CompanyDirData companyDirData = companyDirRepository.findByNitAndCodigoDireccion(companyData.getNit(), deliveryCode);
-                FreightConfigData freightConfigData;
-                if (companyDirData != null) {
-                    freightConfigData = freightConfigRepository.findByTipofleteAndCategoriaclienteAndPaisAndDepartamentoAndCiudad(
-                            freightTypes.get(deal.getFreightType()).substring(0, 1),
-                            companyData.getConcepto_14(),
-                            companyDirData.getY_pais(),
-                            companyDirData.getY_dpto(),
-                            companyDirData.getY_ciudad());
-                } else if (deliveryCode < 0) {
-                    freightConfigData = null;
+        if (deal.getCompanyId() != 0) {
+            BitrixResult<BitrixCompany> company = getCompany(deal.getCompanyId());
+            CompanyData companyData = companyRepository.findByNit(company.getResult().getNit());
+            if (validateProductPrice(deal, result, companyData)) {
+                deal.setStageId(StageEnum.VALIDACION_COTIZACION.getValue());
+            } else if (result.getResult().stream().noneMatch(bitrixProductRows -> bitrixProductRows.getProductName().contains("FLETES"))) {
+                String stage = StageEnum.SEGUIMIENTO_COTIZACION.getValue();
+                String comments = "";
+                double price = 0;
+                if (result.getResult().isEmpty()) {
+                    stage = StageEnum.BANDEJA_DE_ENTRADA.getValue();
+                    comments = "No se encontro ningun producto";
                 } else {
-                    freightConfigData = freightConfigRepository.findByTipofleteAndCategoriaclienteAndPaisAndDepartamentoAndCiudad(
-                            freightTypes.get(deal.getFreightType()).substring(0, 1),
-                            companyData.getConcepto_14(),
-                            companyData.getYPais() != null ? companyData.getYPais().getPais() : "",
-                            companyData.getYDpto() != null ? companyData.getYDpto().getDepartamento() : "",
-                            companyData.getYCiudad() != null ? companyData.getYCiudad().getCiudad() : "");
-                }
+                    boolean isChemist = false;
+                    for (BitrixProductRows productRows : result.getResult()) {
+                        ProductData productData = productRepository.findByCodigo(productRows.getProductName());
+                        if (productData != null && productData.getGrupo().getDescripcion().equals("QUIMICOS"))
+                            isChemist = true;
+                        price += productRows.getPrice() * productRows.getQuantity();
+                    }
 
-                if (freightConfigData != null && freightConfigData.getValorminimoventa() > price) {
-                    Optional<ProductData> productData = isChemist ? productRepository.findByFreight().stream()
-                            .filter(p -> p.getValor_unitario() == freightConfigData.getValorflete())
-                            .findFirst() : productRepository.findByFreight().stream()
-                            .filter(p -> p.getValor_unitario() == freightConfigData.getValorflete())
-                            .skip(1)
-                            .findFirst();
+                    BitrixResult<List<BitrixCustomFields>> customFields = bitrixUtils.getDealCustomFields(BitrixGetList.builder()
+                                    .filter(Map.of("FIELD_NAME", "UF_CRM_1744648899"))
+                                    .build())
+                            .getBody();
 
-                    if (productData.isPresent()) {
-                        BitrixResult<Map<String, List<BitrixGetProduct>>> mapBitrixResult = bitrixUtils.getProductByFilter(BitrixGetList.builder()
-                                        .select(List.of("id", "iblockId"))
-                                        .filter(Map.of("iblockId", 14, "code", productData.get().getCodigo()))
-                                        .build())
-                                .getBody();
+                    assert customFields != null;
+                    Map<Integer, String> freightTypes = customFields.getResult()
+                            .getFirst()
+                            .getValues()
+                            .stream()
+                            .collect(Collectors.toMap(BitrixCustomFields.ListItem::getId, BitrixCustomFields.ListItem::getValue));
 
-                        result.getResult().add(BitrixProductRows.builder()
-                                .productId(mapBitrixResult.getResult().get("products").getFirst().getId())
-                                .productName(productData.get().getCodigo())
-                                .price(productData.get().getValor_unitario())
-                                .quantity(1)
-                                .build());
+                    int deliveryCode = 0;
+                    if (!deal.getDeliveryAddress().isEmpty() && !deal.getDeliveryAddress().startsWith("Dir:")) {
+                        deliveryCode = -1;
+                    } else if (deal.getDeliveryAddress().startsWith("Dir:")) {
+                        String s = deal.getDeliveryAddress().strip().split(",")[0].strip().split(":")[1].replace(" ", "");
+                        deliveryCode = Integer.parseInt(s);
+                    }
+                    CompanyDirData companyDirData = companyDirRepository.findByNitAndCodigoDireccion(companyData.getNit(), deliveryCode);
+                    FreightConfigData freightConfigData;
+                    if (companyDirData != null) {
+                        freightConfigData = freightConfigRepository.findByTipofleteAndCategoriaclienteAndPaisAndDepartamentoAndCiudad(
+                                freightTypes.get(deal.getFreightType()).substring(0, 1),
+                                companyData.getConcepto_14(),
+                                companyDirData.getYPais().getPais(),
+                                companyDirData.getYDpto().getDepartamento(),
+                                companyDirData.getYCiudad().getCiudad());
+                    } else if (deliveryCode < 0) {
+                        freightConfigData = null;
+                    } else {
+                        freightConfigData = freightConfigRepository.findByTipofleteAndCategoriaclienteAndPaisAndDepartamentoAndCiudad(
+                                freightTypes.get(deal.getFreightType()).substring(0, 1),
+                                companyData.getConcepto_14(),
+                                companyData.getYPais() != null ? companyData.getYPais().getPais() : "",
+                                companyData.getYDpto() != null ? companyData.getYDpto().getDepartamento() : "",
+                                companyData.getYCiudad() != null ? companyData.getYCiudad().getCiudad() : "");
+                    }
 
-                        updateProductDeal(BitrixUpdate.<BitrixProductRows>builder()
-                                .id(String.valueOf(deal.getId()))
-                                .rows(result.getResult())
-                                .build());
+                    if (freightConfigData != null && freightConfigData.getValorminimoventa() > price) {
+                        Optional<ProductData> productData = isChemist ? productRepository.findByFreight().stream()
+                                .filter(p -> p.getValor_unitario() == freightConfigData.getValorflete())
+                                .findFirst() : productRepository.findByFreight().stream()
+                                .filter(p -> p.getValor_unitario() == freightConfigData.getValorflete())
+                                .skip(1)
+                                .findFirst();
+
+                        if (productData.isPresent()) {
+                            BitrixResult<Map<String, List<BitrixGetProduct>>> mapBitrixResult = bitrixUtils.getProductByFilter(BitrixGetList.builder()
+                                            .select(List.of("id", "iblockId"))
+                                            .filter(Map.of("iblockId", 14, "code", productData.get().getCodigo()))
+                                            .build())
+                                    .getBody();
+
+                            assert mapBitrixResult != null;
+                            result.getResult().add(BitrixProductRows.builder()
+                                    .productId(mapBitrixResult.getResult().get("products").getFirst().getId())
+                                    .productName(productData.get().getCodigo())
+                                    .price(productData.get().getValor_unitario())
+                                    .quantity(1)
+                                    .build());
+
+                            updateProductDeal(BitrixUpdate.<BitrixProductRows>builder()
+                                    .id(String.valueOf(deal.getId()))
+                                    .rows(result.getResult())
+                                    .build());
+                        }
                     }
                 }
-            }
 
-            deal.setStageId(stage);
-            if (!comments.isEmpty())
-                deal.setErrorMessage(getDateTime() + "\n" + comments + "\n\n" + deal.getErrorMessage());
-            bitrixUtils.updateDeal(BitrixUpdate.builder()
-                    .id(String.valueOf(deal.getId()))
-                    .fields(deal)
-                    .build());
+                deal.setStageId(stage);
+                if (!comments.isEmpty())
+                    deal.setErrorMessage(getDateTime() + "\n" + comments + "\n\n" + deal.getErrorMessage());
+            } else {
+                deal.setStageId(StageEnum.SEGUIMIENTO_COTIZACION.getValue());
+            }
         } else {
-            deal.setStageId(StageEnum.SEGUIMIENTO_COTIZACION.getValue());
-            bitrixUtils.updateDeal(BitrixUpdate.builder()
-                    .id(String.valueOf(deal.getId()))
-                    .fields(deal)
-                    .build());
+            deal.setStageId(StageEnum.BANDEJA_DE_ENTRADA.getValue());
+            deal.setErrorMessage(getDateTime() + "\nNo se encontro ninguna compañia\n\n" + deal.getErrorMessage());
         }
+        bitrixUtils.updateDeal(BitrixUpdate.builder()
+                .id(String.valueOf(deal.getId()))
+                .fields(deal)
+                .build());
     }
 
     private boolean validateQuota(BitrixDeal deal, BitrixResult<List<BitrixProductRows>> result) throws BitrixException {
@@ -598,8 +697,10 @@ public class Gateway {
         boolean approved = system1320HistoryData.stream().noneMatch(s -> s.getAutorizado() == 1);
 
         List<System1320Data> system1320Data = system1320Repository.findByNitAndNotas(company.getResult().getNit(), String.valueOf(deal.getId()));
-        if (!system1320Data.isEmpty())
+        if (!system1320Data.isEmpty()) {
+            deal.setStageId(StageEnum.VALIDACION_PAGO_CUPO.getValue());
             return false;
+        }
 
         if (approved) {
             CompanyData companyData = companyRepository.findByNit(company.getResult().getNit());
@@ -619,8 +720,6 @@ public class Gateway {
                 totalPassDue.updateAndGet(v -> v + quotaData.getVencida());
             });
 
-            // use BigDecimal for count money
-            // cast decimals to 2
             boolean needUpdate = false;
             String message = "";
             if (companyData.getCondicion().equals("0") || companyData.getCondicion().equals("00")) {
@@ -639,6 +738,7 @@ public class Gateway {
                                 .filter(Map.of("ID", deal.getAssigned()))
                                 .build())
                         .getBody();
+                assert userList != null;
                 UserData userData = userRepository.findByCorreointbitrix(userList.getResult().getFirst().getEmail());
 
                 BitrixResult<List<BitrixCustomFields>> customFields = bitrixUtils.getDealCustomFields(BitrixGetList.builder()
@@ -646,6 +746,7 @@ public class Gateway {
                                 .build())
                         .getBody();
 
+                assert customFields != null;
                 Map<Integer, String> warehouseMap = customFields
                         .getResult()
                         .getFirst()
@@ -685,7 +786,6 @@ public class Gateway {
         return true;
     }
 
-    @Transactional
     public void processOrder(BitrixDeal deal, BitrixResult<List<BitrixProductRows>> result) throws BitrixException {
         if (deal.getNoOrder().isEmpty() && deal.getCompanyId() != 0) {
             BitrixResult<BitrixCompany> company = getCompany(deal.getCompanyId());
@@ -696,7 +796,6 @@ public class Gateway {
                 deal.setErrorMessage(getDateTime() + "\nLa compañia no existe en DMS" + "\n\n" + deal.getErrorMessage());
             } else if (result.getResult().isEmpty()) {
                 deal.setStageId(StageEnum.BANDEJA_DE_ENTRADA.getValue());
-                deal.setErrorMessage(getDateTime() + "\nNo tiene productos" + "\n\n" + deal.getErrorMessage());
             } else if (validateProductPrice(deal, result, companyData)) {
                 deal.setStageId(StageEnum.VALIDACION_PAGO_CUPO.getValue());
             } else if (validateQuota(deal, result)) {
@@ -704,6 +803,7 @@ public class Gateway {
                                 .build())
                         .getBody();
 
+                assert customFields != null;
                 Map<String, Map<Integer, String>> fieldsValues = customFields.getResult().stream()
                         .filter(bitrixCustomFields -> bitrixCustomFields.getFieldName().matches("UF_CRM_1743439978|UF_CRM_1743774849|UF_CRM_1743774680|UF_CRM_1735241718870"))
                         .collect(Collectors.toMap(
@@ -723,6 +823,7 @@ public class Gateway {
                                 .filter(Map.of("ID", deal.getAssigned()))
                                 .build())
                         .getBody();
+                assert userList != null;
                 UserData userData = userRepository.findByCorreointbitrix(userList.getResult().getFirst().getEmail());
 
                 String warehouse = warehouseMap.get(Integer.parseInt(deal.getWarehouse())).split("-")[0].strip();
@@ -738,7 +839,7 @@ public class Gateway {
 
                 String stage = StageEnum.SEGUIMIENTO_DEL_PEDIDO.getValue();
                 AtomicReference<String> comment = new AtomicReference<>("Productos sin existencia:\n");
-                LocalDate date = LocalDate.now();
+                LocalDate date = LocalDate.now(ZoneId.of("-5"));
                 AtomicInteger seq = new AtomicInteger(1);
 
                 int deliveryCode = 0;
@@ -759,7 +860,7 @@ public class Gateway {
                                 .nit(companyData.getNit())
                                 .valor_total(deal.getAmount())
                                 .fecha(date)
-                                .fecha_hora(LocalDateTime.now())
+                                .fecha_hora(getLocalTimeZone())
                                 .vendedor(userData != null ? userData.getNit() : 0)
                                 .diasValidez(Integer.parseInt(validDayMap.get(Integer.parseInt(deal.getValidDay())).split(" ")[0]))
                                 .condicion(companyData.getCondicion())
@@ -793,7 +894,7 @@ public class Gateway {
                                 .codigodireccion(documentPed.getCodigo_direccion())
                                 .build());
 
-                        DocumentPedHistory documentPedHistory = documentPedHistoryRepository.save(DocumentPedHistory.builder()
+                        documentPedHistoryRepository.save(DocumentPedHistory.builder()
                                 .pc(documentPed.getPc())
                                 .codigo_direccion(documentPed.getCodigo_direccion())
                                 .anulado(documentPed.getAnulado())
@@ -818,21 +919,35 @@ public class Gateway {
 
                         result.getResult().forEach(bitrixProductRows -> {
                             boolean hasStock = true;
-                            Optional<StockData> stockDataList = stockRepository.findById(new StockDataId(
-                                    bitrixProductRows.getProductName(),
-                                    warehouse,
-                                    date.getYear(),
-                                    date.getMonthValue()
-                            ));
+                            ProductData productData = productRepository.findByCodigo(bitrixProductRows.getProductName());
 
-                            if (stockDataList.isPresent()) {
-                                if (stockDataList.get().getStock() < bitrixProductRows.getQuantity())
-                                    hasStock = false;
+                            if (productData.getManeja_inventario() == 1) {
+                                Optional<StockData> stockDataList = stockRepository.findById(new StockDataId(
+                                        bitrixProductRows.getProductName(),
+                                        warehouse,
+                                        date.getYear(),
+                                        date.getMonthValue()
+                                ));
+
+                                if (stockDataList.isPresent()) {
+                                    AtomicReference<Double> realStock = new AtomicReference<>(stockDataList.get().getStock());
+                                    stockDependenciesRepository.findById(stockDataList.get().getCodigo())
+                                            .ifPresent(stockDependenciesData -> stockRepository.findById(new StockDataId(
+                                                            stockDependenciesData.getCodigodepende(),
+                                                            warehouse,
+                                                            date.getYear(),
+                                                            date.getMonthValue()
+                                                    ))
+                                                    .ifPresent(stockData -> realStock
+                                                            .updateAndGet(v -> v + (stockData.getStock() * stockDependenciesData.getCantidad()))));
+                                    if (realStock.get() < bitrixProductRows.getQuantity())
+                                        hasStock = false;
+                                }
                             }
 
                             if (!hasStock) {
                                 comment.getAndUpdate(s -> s + bitrixProductRows.getProductName() + "\n\n");
-                                throw new RuntimeException("No tiene stock disponible");
+                                throw new CustomException("No tiene stock disponible");
                             } else {
                                 Integer hasOtherUnit = itemOtherUnit.get(bitrixProductRows.getProductName() + "_" + bitrixProductRows.getQuantity());
 
@@ -840,7 +955,7 @@ public class Gateway {
                                         .seq(seq.getAndAdd(1))
                                         .codigo(bitrixProductRows.getProductName())
                                         .cantidad(bitrixProductRows.getQuantity())
-                                        .valorUnitario(bitrixProductRows.getPrice())
+                                        .valorUnitario(bitrixProductRows.getPriceExclusive())
                                         .numero(consecutiveDataOptional.get().getNext())
                                         .bodega(Integer.parseInt(warehouse))
                                         .porcentaje_iva(bitrixProductRows.getTax())
@@ -929,7 +1044,7 @@ public class Gateway {
                     deal.setStageId(stage);
                 else {
                     deal.setErrorMessage(getDateTime() + "\n" + comment.get() + "\n\n" + deal.getErrorMessage());
-                    deal.setStageId(StageEnum.VALIDACION_PAGO_CUPO.getValue());
+                    //deal.setStageId(StageEnum.PEDIDO.getValue());
                 }
             }
         } else
@@ -941,7 +1056,7 @@ public class Gateway {
     }
 
     private void cancelOrder(BitrixDeal deal) {
-        if (deal.getNoOrder() != null) {
+        if (deal.getNoOrder() != null && !deal.getNoOrder().isEmpty()) {
             int numberOrder = Integer.parseInt(deal.getNoOrder());
 
             DocumentPed documentPed = documentPedRepository.findByNumero(numberOrder);
@@ -993,7 +1108,10 @@ public class Gateway {
                 List<System1320Data> system1320Data = system1320Repository.findByNitAndNotas(Long.parseLong(model.getNit()), model.getNotas());
 
                 if (system1320Data.isEmpty()) {
-                    deal.setStageId(StageEnum.PEDIDO.getValue());
+                    if (deal.getStageId().equals(StageEnum.VALIDACION_COTIZACION.getValue()))
+                        deal.setStageId(StageEnum.SEGUIMIENTO_COTIZACION.getValue());
+                    else if (deal.getStageId().equals(StageEnum.VALIDACION_PAGO_CUPO.getValue()))
+                        deal.setStageId(StageEnum.PEDIDO.getValue());
                     bitrixUtils.updateDeal(BitrixUpdate.builder()
                             .id(String.valueOf(deal.getId()))
                             .fields(deal)
@@ -1020,13 +1138,39 @@ public class Gateway {
                         .pc_a(model.getPc_a())
                         .build()));
 
-                deal.setStageId(StageEnum.SEGUIMIENTO_COTIZACION.getValue());
+                if (deal.getStageId().equals(StageEnum.VALIDACION_COTIZACION.getValue()))
+                    deal.setStageId(StageEnum.BANDEJA_DE_ENTRADA.getValue());
+                else
+                    deal.setStageId(StageEnum.SEGUIMIENTO_COTIZACION.getValue());
+
                 deal.setErrorMessage(getDateTime() + "\nAutorizacion negada en: " + (model.getItem() != null ? model.getItem() : "CLIENTE") + " con el mensaje: " + model.getChat() + "\n" + deal.getErrorMessage());
                 bitrixUtils.updateDeal(BitrixUpdate.builder()
                         .id(String.valueOf(deal.getId()))
                         .fields(deal)
                         .build());
             }
+        }
+    }
+
+    public void startPrdProcess(PrdPlanProcess prdPlanProcess) {
+        BitrixResult<List<BitrixDeal>> result = bitrixUtils.getDealByField(BitrixGetList.builder()
+                        .filter(Map.of("UF_CRM_1743530021292", prdPlanProcess.getNumero()))
+                        .build())
+                .getBody();
+        if (result != null && !result.getResult().isEmpty()) {
+            BitrixDeal deal = result.getResult().getFirst();
+
+            if (deal.getStageId().equals(StageEnum.SEGUIMIENTO_DEL_PEDIDO.getValue()))
+                deal.setStageId(StageEnum.EN_PRODUCCION.getValue());
+            deal.setProductionEndDate(prdPlanProcess.getFechaEntregaCliente()
+                    .atStartOfDay()
+                    .atZone(ZoneId.of("America/Bogota"))
+                    .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+
+            bitrixUtils.updateDeal(BitrixUpdate.builder()
+                    .id(String.valueOf(deal.getId()))
+                    .fields(deal)
+                    .build());
         }
     }
 
@@ -1050,9 +1194,6 @@ public class Gateway {
 
             deal.setProductionDetails(details.get());
 
-            if (!deal.getStageId().equals(StageEnum.EN_PRODUCCION.getValue()))
-                deal.setStageId(StageEnum.EN_PRODUCCION.getValue());
-
             bitrixUtils.updateDeal(BitrixUpdate.builder()
                     .id(String.valueOf(deal.getId()))
                     .fields(deal)
@@ -1061,16 +1202,38 @@ public class Gateway {
     }
 
     public void updateBillStatus(Bill bill) {
-        if (bill.getTipo().equals("FVE1")) {
-            log.debug(bill.toString());
-            BitrixResult<List<BitrixDeal>> result = bitrixUtils.getDealByField(BitrixGetList.builder()
-                            .filter(Map.of("UF_CRM_1743530021292", bill.getNumero()))
-                            .build())
-                    .getBody();
+        if (bill.getTipo().startsWith("FVE")) {
+            String document;
+            BitrixResult<List<BitrixDeal>> result;
+            if (bill.getDocumento().contains("-")) {
+                document = bill.getDocumento().split("-")[1];
+                result = bitrixUtils.getDealByField(BitrixGetList.builder()
+                                .filter(Map.of("ID", document))
+                                .build())
+                        .getBody();
+            } else {
+                document = bill.getDocumento();
+                result = bitrixUtils.getDealByField(BitrixGetList.builder()
+                                .filter(Map.of("UF_CRM_1743530021292", document))
+                                .build())
+                        .getBody();
+            }
 
             if (result != null && !result.getResult().isEmpty()) {
                 BitrixDeal deal = result.getResult().getFirst();
-                deal.setStageId(StageEnum.FACTURADO.getValue());
+
+                billStatusRepository.findById(Long.valueOf(document))
+                        .ifPresent(bsd -> {
+                            String details = Stream.of(bsd.getRemission(), bsd.getRemissionDate(), bsd.getBill(), bsd.getUser(), bsd.getConfirmDate())
+                                    .filter(Objects::nonNull)
+                                    .map(Object::toString)
+                                    .collect(Collectors.joining(" "));
+                            deal.setDetailsBill(details);
+                            if (bsd.getRemissionDate() != null && bsd.getBillDate() == null)
+                                deal.setStageId(StageEnum.APLAZADO.getValue());
+                            else
+                                deal.setStageId(StageEnum.FACTURADO.getValue());
+                        });
 
                 bitrixUtils.updateDeal(BitrixUpdate.builder()
                         .id(String.valueOf(deal.getId()))
@@ -1101,6 +1264,7 @@ public class Gateway {
             return bitrixUtils.getDeal(id).getBody();
         } catch (HttpClientErrorException e) {
             BitrixError error = e.getResponseBodyAs(BitrixError.class);
+            assert error != null;
             throw new BitrixException(error.getErrorDescription());
         }
     }
@@ -1110,6 +1274,7 @@ public class Gateway {
             return bitrixUtils.getDealProducts(id).getBody();
         } catch (HttpClientErrorException e) {
             BitrixError error = e.getResponseBodyAs(BitrixError.class);
+            assert error != null;
             throw new BitrixException(error.getErrorDescription());
         }
     }
@@ -1119,16 +1284,17 @@ public class Gateway {
             return bitrixUtils.getCompany(id).getBody();
         } catch (HttpClientErrorException e) {
             BitrixError error = e.getResponseBodyAs(BitrixError.class);
+            assert error != null;
             throw new BitrixException(error.getErrorDescription());
         }
     }
 
     private <T> void updateProductDeal(BitrixUpdate<T> bitrixUpdate) throws BitrixException {
         try {
-            bitrixUtils.updateDealProduct(bitrixUpdate)
-                    .getBody();
+            bitrixUtils.updateDealProduct(bitrixUpdate);
         } catch (HttpClientErrorException e) {
             BitrixError error = e.getResponseBodyAs(BitrixError.class);
+            assert error != null;
             throw new BitrixException(error.getErrorDescription());
         }
     }
@@ -1138,10 +1304,10 @@ public class Gateway {
     }
 
     private String getDateTime() {
-        return LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"));
+        return getLocalTimeZone().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"));
     }
 
-    private void getOtherUnit(BitrixDeal deal, BitrixResult<List<BitrixProductRows>> result) {
+    private void getOtherUnit(BitrixDeal deal, BitrixResult<List<BitrixProductRows>> result) throws SecondUnitException {
         if (deal.getOtherUnits().isEmpty()) {
             StringBuilder otherUnitItems = new StringBuilder();
             for (BitrixProductRows productRows : result.getResult()) {
@@ -1154,6 +1320,9 @@ public class Gateway {
             deal.setOtherUnits(otherUnitItems.toString());
         } else {
             Map<String, Integer> itemOtherUnit = getStringIntegerMap(deal);
+
+            if (itemOtherUnit.entrySet().stream().anyMatch(s -> s.getValue().equals(0)))
+                throw new SecondUnitException(deal, "Error valor(es) invalidos en segunda unidad");
 
             StringBuilder otherUnitItems = new StringBuilder();
             StringBuilder otherUnitDetails = new StringBuilder();
@@ -1210,9 +1379,9 @@ public class Gateway {
                     if (!quantity.isEmpty())
                         itemOtherUnit.put(temp[0].strip(), Integer.parseInt(quantity));
                     else
-                        itemOtherUnit.put(temp[0].strip(), 1);
+                        itemOtherUnit.put(temp[0].strip(), 0);
                 } else {
-                    itemOtherUnit.put(temp[0].strip(), 1);
+                    itemOtherUnit.put(temp[0].strip(), 0);
                 }
             }
         }
@@ -1223,19 +1392,92 @@ public class Gateway {
         return input.replaceAll("\\[(/)?[a-zA-Z]+(?:=[^]]*)?]", "");
     }
 
-    public double roundToTwoDecimals(double value) {
-        return new java.math.BigDecimal(value)
-                .setScale(3, java.math.RoundingMode.HALF_UP)
-                .doubleValue();
+    private LocalDateTime getLocalTimeZone() {
+        return LocalDateTime.now(ZoneId.of("America/Bogota"));
     }
 
+    @Scheduled(cron = "0 0/30 * * * *")
+    public void runEveryDayAtMidnight() {
+        log.info("Bill process start");
+        List<BillStatusData> billStatusData = billStatusRepository.findYesterdayRecords();
 
-    @Scheduled(fixedRate = 10000) // Run every minute
+        List<Long> remissions = billStatusData.stream()
+                .filter(bsd -> bsd.getRemissionDate() != null && bsd.getBillDate() == null)
+                .map(BillStatusData::getNumber)
+                .toList();
+
+        BitrixResult<List<BitrixDeal>> resultRemissions = bitrixUtils.getDealByField(BitrixGetList.builder()
+                        .filter(Map.of("UF_CRM_1743530021292", remissions, "!STAGE_ID", "WON"))
+                        .build())
+                .getBody();
+
+        if (resultRemissions != null) {
+            resultRemissions.getResult()
+                    .forEach(deal -> {
+                        deal.setStageId(StageEnum.APLAZADO.getValue());
+                        billStatusData.stream().filter(bsd -> bsd.getNumber() == Long.parseLong(deal.getNoOrder()))
+                                .findFirst()
+                                .ifPresent(bsd -> {
+                                    String result = Stream.of(bsd.getRemission(), bsd.getRemissionDate(), bsd.getBill(), bsd.getUser(), bsd.getConfirmDate())
+                                            .filter(Objects::nonNull)
+                                            .map(Object::toString)
+                                            .collect(Collectors.joining(" "));
+                                    deal.setDetailsBill(result);
+                                });
+                        bitrixUtils.updateDeal(BitrixUpdate.builder()
+                                .id(String.valueOf(deal.getId()))
+                                .fields(deal)
+                                .build());
+                    });
+        }
+
+        List<Long> numbers = billStatusData.stream()
+                .filter(bsd -> bsd.getBillDate() != null)
+                .map(BillStatusData::getNumber)
+                .toList();
+
+        BitrixResult<List<BitrixDeal>> result = bitrixUtils.getDealByField(BitrixGetList.builder()
+                        .filter(Map.of("UF_CRM_1743530021292", numbers, "!STAGE_ID", "WON"))
+                        .build())
+                .getBody();
+
+        if (result != null) {
+            result.getResult()
+                    .forEach(deal -> {
+                        deal.setStageId(StageEnum.FACTURADO.getValue());
+                        billStatusData.stream().filter(bsd -> bsd.getNumber() == Long.parseLong(deal.getNoOrder()))
+                                .findFirst()
+                                .ifPresent(bsd -> {
+                                    String details = Stream.of(bsd.getRemission(), bsd.getRemissionDate(), bsd.getBill(), bsd.getUser(), bsd.getConfirmDate())
+                                            .filter(Objects::nonNull)
+                                            .map(Object::toString)
+                                            .collect(Collectors.joining(" "));
+                                    deal.setDetailsBill(details);
+                                });
+                        bitrixUtils.updateDeal(BitrixUpdate.builder()
+                                .id(String.valueOf(deal.getId()))
+                                .fields(deal)
+                                .build());
+                    });
+        }
+        log.info("Bill process finish");
+    }
+
+    @Scheduled(fixedRate = 10000)
     public void evictOldEntries() {
         log.debug("lock free run");
         long currentTime = System.currentTimeMillis();
         timedMap.entrySet().removeIf(entry ->
                 (currentTime - entry.getValue()) > EVICTION_DELAY_MS
         );
+    }
+
+    public void unexpectedError(BitrixDeal deal, String message) {
+        deal.setStageId(StageEnum.BANDEJA_DE_ENTRADA.getValue());
+        deal.setErrorMessage(getDateTime() + "\n" + message + "\n\n" + deal.getErrorMessage());
+        bitrixUtils.updateDeal(BitrixUpdate.builder()
+                .id(String.valueOf(deal.getId()))
+                .fields(deal)
+                .build());
     }
 }

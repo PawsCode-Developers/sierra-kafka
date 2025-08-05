@@ -29,7 +29,7 @@ public class BitrixDeal {
     @JsonProperty("CURRENCY_ID")
     String currency;
 
-    @JsonProperty("OPPORTUNITY")
+    @JsonProperty(value = "OPPORTUNITY", access = JsonProperty.Access.WRITE_ONLY)
     double amount;
 
     @JsonProperty("CONTACT_ID")
@@ -46,6 +46,9 @@ public class BitrixDeal {
 
     @JsonProperty(value = "DATE_MODIFY", access = JsonProperty.Access.WRITE_ONLY)
     OffsetDateTime modifyDate;
+
+    @JsonProperty(value = "MODIFY_BY_ID", access = JsonProperty.Access.WRITE_ONLY)
+    int modifyId;
 
     @JsonProperty("ASSIGNED_BY_ID")
     long assigned;
@@ -94,4 +97,10 @@ public class BitrixDeal {
 
     @JsonProperty("UF_CRM_1750204659")
     String clientState;
+
+    @JsonProperty("UF_CRM_1753282645800")
+    String productionEndDate;
+
+    @JsonProperty("UF_CRM_1753283405")
+    String detailsBill;
 }

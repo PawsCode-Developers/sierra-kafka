@@ -9,20 +9,20 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 
 @Data
 @Entity
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "auditoria")
-public class AuditData {
+@Table(name = "documentos")
+public class BillData {
     @Id
-    @Builder.Default
-    LocalDateTime fecha = LocalDateTime.now(ZoneId.of("America/Bogota"));
-    @Builder.Default
-    String pc = "BITRIX";
-    String usuario;
-    String que;
+    long id;
+    long sw;
+    String tipo;
+    long numero;
+    long nit;
+    LocalDateTime fecha_hora;
+    String documento;
 }

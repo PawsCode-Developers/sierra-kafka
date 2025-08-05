@@ -13,8 +13,11 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "softjs_ped_control_anulacion")
-public class SoftJSPedControlAnulation {
+@Table(name = "softjs_ped_control_anulacion_DetAutorizacion")
+public class SoftJSPedControlAnnulationAuthorization {
     @Id
     int numero;
+    @Builder.Default
+    int sw = 1;
+    int bodega;
 }

@@ -13,4 +13,5 @@ public class Bill {
     String numero;
     long nit;
     String fecha;
+    String documento;
 }

@@ -9,6 +9,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 @Data
 @Entity
@@ -27,7 +28,7 @@ public class System1320HistoryData {
     @Builder.Default
     String programa = "INTEGRACION BITRIX";
     @Builder.Default
-    LocalDateTime fecha_hora = LocalDateTime.now();
+    LocalDateTime fecha_hora = LocalDateTime.now(ZoneId.of("America/Bogota"));
     int autorizado;
     String usuario_autorizo;
     LocalDateTime fecha_hora_a;

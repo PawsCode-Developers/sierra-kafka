@@ -9,6 +9,7 @@ spring:
     time-zone: America/Bogota
   kafka:
     bootstrap-servers: ${KAFKA_HOST}:9093
+    client-id: kafka-integration-spring
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
@@ -18,26 +19,35 @@ spring:
       enable-auto-commit: true
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      session-timeout-ms: 15000
+      heartbeat-interval-ms: 3000
+      max-poll-interval-ms: 300000
       properties:
         request.timeout.ms: 30000
         connections.max.idle.ms: 30000
     properties:
-      security:
-        protocol: PLAINTEXT
+      retry.backoff.ms: 1000
+      reconnect.backoff.ms: 1000
+      request.timeout.ms: 30000
+      security.protocol: PLAINTEXT
   datasource:
     url: jdbc:sqlserver://${DB_HOST}:1433;databaseName=${DATABASE};encrypt=true;trustServerCertificate=true;
     username: ${DATABASE_USER}
     password: ${DATABASE_PASSWORD}
     driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 30000
+      connection-timeout: 20000
+      pool-name: HikariCP
   jpa:
     hibernate:
       ddl-auto: none
     show-sql: false
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.SQLServerDialect
         format_sql: true
-        jdbc.time_zone: America/Bogota
 
 management.endpoint.health.enabled: true
 management.endpoints.web.exposure.include: health

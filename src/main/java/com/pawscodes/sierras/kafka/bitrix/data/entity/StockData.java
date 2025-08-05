@@ -26,5 +26,5 @@ public class StockData {
     int ano;
     @Id
     int mes;
-    long stock;
+    double stock;
 }

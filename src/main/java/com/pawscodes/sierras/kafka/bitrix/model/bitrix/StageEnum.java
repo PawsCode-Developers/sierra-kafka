@@ -6,11 +6,13 @@ import lombok.Getter;
 public enum StageEnum {
     BANDEJA_DE_ENTRADA("Bandeja de entrada", "UC_KABQS8"),
     COTIZACION("Cotización", "NEW"),
+    VALIDACION_COTIZACION("Validaciones Cotización", "UC_U4B687"),
     SEGUIMIENTO_COTIZACION("Seguimiento cotización", "PREPAYMENT_INVOICE"),
     VALIDACION_PAGO_CUPO("Validación Pago / Cupo", "PREPARATION"),
     PEDIDO("Pedido", "EXECUTING"),
     SEGUIMIENTO_DEL_PEDIDO("Seguimiento del pedido", "UC_IN9PCF"),
     EN_PRODUCCION("En producción", "FINAL_INVOICE"),
+    APLAZADO("APLAZADO", "APOLOGY"),
     CERRADO_PERDIDO("Cerrado Perdido", "LOSE"),
     FACTURADO("Facturado", "WON");
 

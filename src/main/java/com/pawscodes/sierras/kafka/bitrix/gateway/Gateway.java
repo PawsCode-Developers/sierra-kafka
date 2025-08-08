@@ -38,7 +38,7 @@ import java.util.stream.Stream;
 @Component
 public class Gateway {
 
-    private static final long EVICTION_DELAY_MS = 60 * 1000;
+    private static final long EVICTION_DELAY_MS = 60000;
     private static final Map<String, String> BLOCK = Map.of("0", "Activo", "1", "Inactivo", "2", "Bloqueado", "3", "No se puede usar");
     ConcurrentHashMap<Long, Long> timedMap = new ConcurrentHashMap<>();
     ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
@@ -1208,7 +1208,8 @@ public class Gateway {
             return bitrixUtils.getDeal(id).getBody();
         } catch (HttpClientErrorException e) {
             BitrixError error = e.getResponseBodyAs(BitrixError.class);
-            throw new BitrixException(error.getErrorDescription());
+            assert error != null;
+            throw new BitrixException(error.getErrorDescription(), id, "deal");
         }
     }
 
@@ -1217,7 +1218,8 @@ public class Gateway {
             return bitrixUtils.getDealProducts(id).getBody();
         } catch (HttpClientErrorException e) {
             BitrixError error = e.getResponseBodyAs(BitrixError.class);
-            throw new BitrixException(error.getErrorDescription());
+            assert error != null;
+            throw new BitrixException(error.getErrorDescription(), id, "dealProduct");
         }
     }
 
@@ -1226,17 +1228,18 @@ public class Gateway {
             return bitrixUtils.getCompany(id).getBody();
         } catch (HttpClientErrorException e) {
             BitrixError error = e.getResponseBodyAs(BitrixError.class);
-            throw new BitrixException(error.getErrorDescription());
+            assert error != null;
+            throw new BitrixException(error.getErrorDescription(), id, "company");
         }
     }
 
     private <T> void updateProductDeal(BitrixUpdate<T> bitrixUpdate) throws BitrixException {
         try {
-            bitrixUtils.updateDealProduct(bitrixUpdate)
-                    .getBody();
+            bitrixUtils.updateDealProduct(bitrixUpdate);
         } catch (HttpClientErrorException e) {
             BitrixError error = e.getResponseBodyAs(BitrixError.class);
-            throw new BitrixException(error.getErrorDescription());
+            assert error != null;
+            throw new BitrixException(error.getErrorDescription(), Long.parseLong(bitrixUpdate.getId()), "dealProducts");
         }
     }
 
@@ -1248,7 +1251,7 @@ public class Gateway {
         return LocalDateTime.now(ZoneId.of("America/Bogota")).format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"));
     }
 
-    private void getOtherUnit(BitrixDeal deal, BitrixResult<List<BitrixProductRows>> result) {
+    private void getOtherUnit(BitrixDeal deal, BitrixResult<List<BitrixProductRows>> result) throws BitrixException {
         if (deal.getOtherUnits().isEmpty()) {
             StringBuilder otherUnitItems = new StringBuilder();
             for (BitrixProductRows productRows : result.getResult()) {
@@ -1262,13 +1265,16 @@ public class Gateway {
         } else {
             Map<String, Integer> itemOtherUnit = getStringIntegerMap(deal);
 
+            if (itemOtherUnit.entrySet().stream().anyMatch(s -> s.getValue().equals(0)))
+                throw new BitrixException("Error valor(es) invalidos en segunda unidad", deal.getId(), "deal");
+
             StringBuilder otherUnitItems = new StringBuilder();
             StringBuilder otherUnitDetails = new StringBuilder();
             for (BitrixProductRows productRows : result.getResult()) {
                 if (!itemOtherUnit.containsKey(productRows.getProductName() + "_" + productRows.getQuantity())) {
                     ProductData productData = productRepository.findByCodigo(productRows.getProductName());
                     if (productData != null && productData.getManeja_otra_und() != null && productData.getManeja_otra_und().equals("S"))
-                        itemOtherUnit.put(productRows.getProductName() + "_" + productRows.getQuantity(), 1);
+                        itemOtherUnit.put(productRows.getProductName() + "_" + productRows.getQuantity(), 0);
                 }
                 Integer other = itemOtherUnit.get(productRows.getProductName() + "_" + productRows.getQuantity());
                 if (other != null) {
@@ -1317,9 +1323,9 @@ public class Gateway {
                     if (!quantity.isEmpty())
                         itemOtherUnit.put(temp[0].strip(), Integer.parseInt(quantity));
                     else
-                        itemOtherUnit.put(temp[0].strip(), 1);
+                        itemOtherUnit.put(temp[0].strip(), 0);
                 } else {
-                    itemOtherUnit.put(temp[0].strip(), 1);
+                    itemOtherUnit.put(temp[0].strip(), 0);
                 }
             }
         }
@@ -1337,5 +1343,25 @@ public class Gateway {
         timedMap.entrySet().removeIf(entry ->
                 (currentTime - entry.getValue()) > EVICTION_DELAY_MS
         );
+    }
+
+    public void unexpectedError(long id, String message, String type) {
+        log.error("{} - {} - {}", id, type, message);
+        if (type.equals("deal")) {
+            try {
+                BitrixResult<BitrixDeal> bitrixResult = getDeal(id);
+                BitrixDeal deal = bitrixResult.getResult();
+                deal.setStageId(StageEnum.BANDEJA_DE_ENTRADA.getValue());
+                deal.setErrorMessage(getDateTime() + "\n" + message + "\n\n" + deal.getErrorMessage());
+                bitrixUtils.updateDeal(BitrixUpdate.builder()
+                        .id(String.valueOf(deal.getId()))
+                        .fields(deal)
+                        .build());
+
+                executorService.schedule(() -> timedMap.remove(id), 3, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                log.error(e.getMessage());
+            }
+        }
     }
 }

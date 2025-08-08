@@ -14,13 +14,13 @@ public class CustomExceptionHandler {
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<?> handle(final RuntimeException exception) {
-        exception.printStackTrace();
+        log.error(exception.getMessage());
         return new ResponseEntity<>(exception.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     @ExceptionHandler(HttpClientErrorException.class)
     public void handleHttpClient(final HttpClientErrorException exception) {
-        exception.printStackTrace();
+        log.error(exception.getMessage());
     }
 
     private ResponseEntity<?> handleError(HttpStatus httpStatus, Exception exception) {

@@ -1,5 +1,6 @@
 package com.pawscodes.sierras.kafka.bitrix.operation;
 
+import com.pawscodes.sierras.kafka.bitrix.exception.BitrixException;
 import com.pawscodes.sierras.kafka.bitrix.gateway.Gateway;
 import com.pawscodes.sierras.kafka.bitrix.model.ConsumerRequest;
 import com.pawscodes.sierras.kafka.bitrix.model.Context;
@@ -39,7 +40,11 @@ public class QuoteOperation {
 
     @SneakyThrows
     private Context<Long, String> processRequest(Context<Long, String> context) {
-        gateway.process(context.getRequest());
+        try {
+            gateway.process(context.getRequest());
+        } catch (BitrixException ex) {
+            gateway.unexpectedError(ex.getBitrixId(), ex.getMessage(), ex.getType());
+        }
         return context;
     }
 

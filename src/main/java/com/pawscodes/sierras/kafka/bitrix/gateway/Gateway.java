@@ -1336,6 +1336,73 @@ public class Gateway {
         return input.replaceAll("\\[(/)?[a-zA-Z]+(?:=[^]]*)?]", "");
     }
 
+    @Scheduled(cron = "0 0/30 * * * *")
+    public void runEveryDayAtMidnight() {
+        log.info("Bill process start");
+        List<BillStatusData> billStatusData = billStatusRepository.findYesterdayRecords();
+
+        List<Long> remissions = billStatusData.stream()
+                .filter(bsd -> bsd.getRemissionDate() != null && bsd.getBillDate() == null)
+                .map(BillStatusData::getNumber)
+                .toList();
+
+        BitrixResult<List<BitrixDeal>> resultRemissions = bitrixUtils.getDealByField(BitrixGetList.builder()
+                        .filter(Map.of("UF_CRM_1743530021292", remissions, "!@STAGE_ID", List.of("WON", "APOLOGY")))
+                        .build())
+                .getBody();
+
+        if (resultRemissions != null) {
+            resultRemissions.getResult()
+                    .forEach(deal -> {
+                        deal.setStageId(StageEnum.APLAZADO.getValue());
+                        billStatusData.stream().filter(bsd -> bsd.getNumber() == Long.parseLong(deal.getNoOrder()))
+                                .findFirst()
+                                .ifPresent(bsd -> {
+                                    String result = Stream.of(bsd.getRemission(), bsd.getRemissionDate(), bsd.getBill(), bsd.getUser(), bsd.getConfirmDate())
+                                            .filter(Objects::nonNull)
+                                            .map(Object::toString)
+                                            .collect(Collectors.joining(" "));
+                                    deal.setDetailsBill(result);
+                                });
+                        bitrixUtils.updateDeal(BitrixUpdate.builder()
+                                .id(String.valueOf(deal.getId()))
+                                .fields(deal)
+                                .build());
+                    });
+        }
+
+        List<Long> numbers = billStatusData.stream()
+                .filter(bsd -> bsd.getBillDate() != null)
+                .map(BillStatusData::getNumber)
+                .toList();
+
+        BitrixResult<List<BitrixDeal>> result = bitrixUtils.getDealByField(BitrixGetList.builder()
+                        .filter(Map.of("UF_CRM_1743530021292", numbers, "!STAGE_ID", "WON"))
+                        .build())
+                .getBody();
+
+        if (result != null) {
+            result.getResult()
+                    .forEach(deal -> {
+                        deal.setStageId(StageEnum.FACTURADO.getValue());
+                        billStatusData.stream().filter(bsd -> bsd.getNumber() == Long.parseLong(deal.getNoOrder()))
+                                .findFirst()
+                                .ifPresent(bsd -> {
+                                    String details = Stream.of(bsd.getRemission(), bsd.getRemissionDate(), bsd.getBill(), bsd.getUser(), bsd.getConfirmDate())
+                                            .filter(Objects::nonNull)
+                                            .map(Object::toString)
+                                            .collect(Collectors.joining(" "));
+                                    deal.setDetailsBill(details);
+                                });
+                        bitrixUtils.updateDeal(BitrixUpdate.builder()
+                                .id(String.valueOf(deal.getId()))
+                                .fields(deal)
+                                .build());
+                    });
+        }
+        log.info("Bill process finish");
+    }
+
     @Scheduled(fixedRate = 10000) // Run every minute
     public void evictOldEntries() {
         log.debug("lock free run");

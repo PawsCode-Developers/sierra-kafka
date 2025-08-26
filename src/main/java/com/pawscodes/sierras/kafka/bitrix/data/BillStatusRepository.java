@@ -12,14 +12,25 @@ import java.util.List;
 
 @Repository
 public interface BillStatusRepository extends JpaRepository<BillStatusData, Long> {
-    @Query("SELECT e FROM BillStatusData e WHERE e.authorizationDate BETWEEN :startOfDay AND :endOfDay")
-    List<BillStatusData> findByDateBetween(
+    @Query("SELECT e FROM BillStatusData e WHERE e.billDate BETWEEN :startOfDay AND :endOfDay")
+    List<BillStatusData> findBillByDateBetween(
             @Param("startOfDay") LocalDateTime startOfDay,
             @Param("endOfDay") LocalDateTime endOfDay);
 
-    default List<BillStatusData> findYesterdayRecords() {
-        LocalDateTime startOfDay = LocalDateTime.now(ZoneId.of("America/Bogota")).minusMinutes(40);
+    @Query("SELECT e FROM BillStatusData e WHERE e.remissionDate BETWEEN :startOfDay AND :endOfDay AND e.billDate IS NULL")
+    List<BillStatusData> findRemissionByDateBetween(
+            @Param("startOfDay") LocalDateTime startOfDay,
+            @Param("endOfDay") LocalDateTime endOfDay);
+
+    default List<BillStatusData> findBillsRecords() {
+        LocalDateTime startOfDay = LocalDateTime.now(ZoneId.of("America/Bogota")).minusMinutes(45);
         LocalDateTime endOfDay = LocalDateTime.now(ZoneId.of("America/Bogota"));
-        return findByDateBetween(startOfDay, endOfDay);
+        return findBillByDateBetween(startOfDay, endOfDay);
+    }
+
+    default List<BillStatusData> findRemissionsRecords() {
+        LocalDateTime startOfDay = LocalDateTime.now(ZoneId.of("America/Bogota")).minusMinutes(45);
+        LocalDateTime endOfDay = LocalDateTime.now(ZoneId.of("America/Bogota"));
+        return findRemissionByDateBetween(startOfDay, endOfDay);
     }
 }

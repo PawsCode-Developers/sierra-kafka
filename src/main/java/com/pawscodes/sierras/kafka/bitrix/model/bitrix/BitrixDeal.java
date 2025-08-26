@@ -60,7 +60,7 @@ public class BitrixDeal {
     String validDay;
 
     @JsonProperty("UF_CRM_1743530021292")
-    String NoOrder;
+    String noOrder;
 
     @JsonDeserialize(using = BitrixIntegerDeserializer.class)
     @JsonProperty("UF_CRM_1743774849")

@@ -11,6 +11,7 @@ import com.pawscodes.sierras.kafka.bitrix.model.bitrix.*;
 import com.pawscodes.sierras.kafka.bitrix.model.kafka.table.*;
 import com.pawscodes.sierras.kafka.bitrix.util.BitrixUtils;
 import com.pawscodes.sierras.kafka.bitrix.util.MigrationAppUtil;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -178,7 +179,7 @@ public class Gateway {
             }
 
             companyDirData.forEach(companyDirData1 -> {
-                if (companyDirData1.getDir_activa() != null && companyDirData1.getDir_activa().equals("S"))
+                if (companyDirData1.getDir_activa() == null || companyDirData1.getDir_activa().equals("S"))
                     deal.setAddresses(deal.getAddresses() + "Dir: " + companyDirData1.getCodigoDireccion() + ", " + companyDirData1.getDireccion() + " | " +
                             companyDirData1.getYPais().getDescripcion() + ", " +
                             companyDirData1.getYDpto().getDescripcion() + ", " +
@@ -999,6 +1000,7 @@ public class Gateway {
             }
         } else
             deal.setStageId(StageEnum.SEGUIMIENTO_DEL_PEDIDO.getValue());
+
         bitrixUtils.updateDeal(BitrixUpdate.builder()
                 .id(String.valueOf(deal.getId()))
                 .fields(deal)
@@ -1336,13 +1338,13 @@ public class Gateway {
         return input.replaceAll("\\[(/)?[a-zA-Z]+(?:=[^]]*)?]", "");
     }
 
-    @Scheduled(cron = "0 0/30 * * * *")
+    @PostConstruct
+    //@Scheduled(cron = "0 0,30 7-18 * * ?")
     public void runEveryDayAtMidnight() {
         log.info("Bill process start");
-        List<BillStatusData> billStatusData = billStatusRepository.findYesterdayRecords();
+        List<BillStatusData> billStatusData = billStatusRepository.findRemissionsRecords();
 
         List<Long> remissions = billStatusData.stream()
-                .filter(bsd -> bsd.getRemissionDate() != null && bsd.getBillDate() == null)
                 .map(BillStatusData::getNumber)
                 .toList();
 
@@ -1371,8 +1373,9 @@ public class Gateway {
                     });
         }
 
-        List<Long> numbers = billStatusData.stream()
-                .filter(bsd -> bsd.getBillDate() != null)
+        List<BillStatusData> billStatusDataList = billStatusRepository.findBillsRecords();
+
+        List<Long> numbers = billStatusDataList.stream()
                 .map(BillStatusData::getNumber)
                 .toList();
 

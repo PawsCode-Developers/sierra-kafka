@@ -4,6 +4,8 @@ import com.pawscodes.sierras.kafka.bitrix.exception.CustomException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -16,6 +18,7 @@ public class RestClientUtil {
         this.restClient = RestClient.create();
     }
 
+    @Retryable(backoff = @Backoff(delay = 1000, multiplier = 2))
     public <T> RestClient.RequestBodySpec createRequest(String url, MediaType mediaType, HttpMethod httpMethod, HttpHeaders httpHeaders, T request) {
         try {
             limiter.waitIfNeeded();

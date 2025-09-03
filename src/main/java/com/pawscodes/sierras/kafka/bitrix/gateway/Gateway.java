@@ -11,7 +11,6 @@ import com.pawscodes.sierras.kafka.bitrix.model.bitrix.*;
 import com.pawscodes.sierras.kafka.bitrix.model.kafka.table.*;
 import com.pawscodes.sierras.kafka.bitrix.util.BitrixUtils;
 import com.pawscodes.sierras.kafka.bitrix.util.MigrationAppUtil;
-import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -1060,7 +1059,9 @@ public class Gateway {
                 List<System1320Data> system1320Data = system1320Repository.findByNitAndNotas(Long.parseLong(model.getNit()), model.getNotas());
 
                 if (system1320Data.isEmpty()) {
-                    deal.setStageId(StageEnum.PEDIDO.getValue());
+                    if (deal.getStageId().equals(StageEnum.VALIDACION_COTIZACION.getValue()))
+                        deal.setStageId(StageEnum.SEGUIMIENTO_COTIZACION.getValue());
+                    else deal.setStageId(StageEnum.PEDIDO.getValue());
                     bitrixUtils.updateDeal(BitrixUpdate.builder()
                             .id(String.valueOf(deal.getId()))
                             .fields(deal)
@@ -1087,7 +1088,10 @@ public class Gateway {
                         .pc_a(model.getPc_a())
                         .build()));
 
-                deal.setStageId(StageEnum.SEGUIMIENTO_COTIZACION.getValue());
+                if (deal.getStageId().equals(StageEnum.VALIDACION_COTIZACION.getValue()))
+                    deal.setStageId(StageEnum.BANDEJA_DE_ENTRADA.getValue());
+                else
+                    deal.setStageId(StageEnum.SEGUIMIENTO_COTIZACION.getValue());
                 deal.setErrorMessage(getDateTime() + "\nAutorizacion negada en: " + (model.getItem() != null ? model.getItem() : "CLIENTE") + " con el mensaje: " + model.getChat() + "\n" + deal.getErrorMessage());
                 bitrixUtils.updateDeal(BitrixUpdate.builder()
                         .id(String.valueOf(deal.getId()))
@@ -1338,8 +1342,7 @@ public class Gateway {
         return input.replaceAll("\\[(/)?[a-zA-Z]+(?:=[^]]*)?]", "");
     }
 
-    @PostConstruct
-    //@Scheduled(cron = "0 0,30 7-18 * * ?")
+    @Scheduled(cron = "0 0,30 7-18 * * ?")
     public void runEveryDayAtMidnight() {
         log.info("Bill process start");
         List<BillStatusData> billStatusData = billStatusRepository.findRemissionsRecords();
@@ -1383,6 +1386,20 @@ public class Gateway {
                         .filter(Map.of("UF_CRM_1743530021292", numbers, "!STAGE_ID", "WON"))
                         .build())
                 .getBody();
+
+        if (result != null && result.getTotal() > 50) {
+            for (int i = 1; result.getTotal() > i * 50; i++) {
+                result.getResult().addAll(
+                        bitrixUtils.getDealByField(BitrixGetList.builder()
+                                        .filter(Map.of("UF_CRM_1743530021292", numbers,
+                                                "!STAGE_ID", "WON"))
+                                        .start(i * 50)
+                                        .build())
+                                .getBody()
+                                .getResult()
+                );
+            }
+        }
 
         if (result != null) {
             result.getResult()

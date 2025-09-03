@@ -17,4 +17,6 @@ public class BitrixGetList<T> {
 
     @Builder.Default
     List<String> select = List.of("*", "UF_*");
+
+    int start;
 }

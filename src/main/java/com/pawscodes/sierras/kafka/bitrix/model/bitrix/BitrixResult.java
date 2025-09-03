@@ -12,4 +12,7 @@ public class BitrixResult<T> {
 
     @JsonProperty("result")
     T result;
+
+    @JsonProperty("total")
+    int total;
 }

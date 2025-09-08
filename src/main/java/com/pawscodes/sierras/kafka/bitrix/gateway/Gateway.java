@@ -1155,7 +1155,7 @@ public class Gateway {
         if (bill.getTipo().startsWith("FVE")) {
             String document;
             BitrixResult<List<BitrixDeal>> result;
-            if (bill.getDocumento().contains("-")) {
+            if (bill.getDocumento() != null && bill.getDocumento().contains("-")) {
                 document = bill.getDocumento().split("-")[1];
                 result = bitrixUtils.getDealByField(BitrixGetList.builder()
                                 .filter(Map.of("ID", document))
@@ -1342,7 +1342,7 @@ public class Gateway {
         return input.replaceAll("\\[(/)?[a-zA-Z]+(?:=[^]]*)?]", "");
     }
 
-    @Scheduled(cron = "0 0,30 7-18 * * ?")
+    @Scheduled(cron = "0 0/30 6-20 * * ?")
     public void runEveryDayAtMidnight() {
         log.info("Bill process start");
         List<BillStatusData> billStatusData = billStatusRepository.findRemissionsRecords();

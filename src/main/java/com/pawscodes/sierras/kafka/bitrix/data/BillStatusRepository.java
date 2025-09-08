@@ -23,13 +23,13 @@ public interface BillStatusRepository extends JpaRepository<BillStatusData, Long
             @Param("endOfDay") LocalDateTime endOfDay);
 
     default List<BillStatusData> findBillsRecords() {
-        LocalDateTime startOfDay = LocalDateTime.now(ZoneId.of("America/Bogota")).minusMinutes(45);
+        LocalDateTime startOfDay = LocalDateTime.now(ZoneId.of("America/Bogota")).minusHours(2);
         LocalDateTime endOfDay = LocalDateTime.now(ZoneId.of("America/Bogota"));
         return findBillByDateBetween(startOfDay, endOfDay);
     }
 
     default List<BillStatusData> findRemissionsRecords() {
-        LocalDateTime startOfDay = LocalDateTime.now(ZoneId.of("America/Bogota")).minusMinutes(45);
+        LocalDateTime startOfDay = LocalDateTime.now(ZoneId.of("America/Bogota")).minusHours(2);
         LocalDateTime endOfDay = LocalDateTime.now(ZoneId.of("America/Bogota"));
         return findRemissionByDateBetween(startOfDay, endOfDay);
     }

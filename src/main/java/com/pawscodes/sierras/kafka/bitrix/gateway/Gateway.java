@@ -1342,7 +1342,7 @@ public class Gateway {
         return input.replaceAll("\\[(/)?[a-zA-Z]+(?:=[^]]*)?]", "");
     }
 
-    @Scheduled(cron = "0 0/30 6-20 * * ?")
+    @Scheduled(cron = "0 0 6-20 * * ?")
     public void runEveryDayAtMidnight() {
         log.info("Bill process start");
         List<BillStatusData> billStatusData = billStatusRepository.findRemissionsRecords();
@@ -1357,6 +1357,7 @@ public class Gateway {
                 .getBody();
 
         if (resultRemissions != null) {
+            log.info("Remissions bills number update: {}", resultRemissions.getResult().size());
             resultRemissions.getResult()
                     .forEach(deal -> {
                         deal.setStageId(StageEnum.APLAZADO.getValue());
@@ -1402,6 +1403,7 @@ public class Gateway {
         }
 
         if (result != null) {
+            log.info("Bill number update: {}", result.getResult().size());
             result.getResult()
                     .forEach(deal -> {
                         deal.setStageId(StageEnum.FACTURADO.getValue());
